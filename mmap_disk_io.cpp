@@ -111,7 +111,7 @@ int close_mmap_file(MmapInfo& mmap_info) {
 }
 
 
-void writeMmapResultsToFile(const std::vector<long>& initiation_times, const std::vector<double>& sync_times, int msg_size) {
+void writeMmapResultsToFile(const vector<pair<long, long>>& times, int msg_size) {
 	// Construct the output file name
 	std::string filename = "/hdd2/rdma-libs/results/mmap_io_" + std::to_string(msg_size) + ".txt";
 	std::ofstream outputFile(filename);
@@ -122,8 +122,8 @@ void writeMmapResultsToFile(const std::vector<long>& initiation_times, const std
 		outputFile << "memcpy_duration_nsec\tmsync_duration_nsec\n";
 
 		// Write the data from the 'times' vector
-		for (size_t i = 0; i < initiation_times.size(); ++i) {
-			outputFile << initiation_times[i] << "\t" << sync_times[i] << "\n";
+		for (pair time : times) {
+			outputFile << time.first << "\t" << time.second << "\n";
 		}
 
 		// Close the file
@@ -167,10 +167,11 @@ int main(int argc, char* argv[]) {
 		current_offset += msg.size();
 	}
 
-    vector<pair<long, long>> times;
+	int num_msgs = FLAGS_msg_count;
+    vector<pair<long, long>> times(num_msgs);
     int message_count = 0;
     current_offset = 0;
-    for (int i = 0; i < saved_msgs_count; ++i) {
+    for (int i = 0; i < num_msgs; ++i) {
         string msg = saved_msgs[i];
         pair<long, long> elapsed_nsec = perform_mmap_write(mmap_info, msg, current_offset);
         times[i] = elapsed_nsec;
@@ -184,10 +185,7 @@ int main(int argc, char* argv[]) {
 
     close_mmap_file(mmap_info);
 
-	spdlog::info("Number of writes: {}", message_count);
-	for (pair passed_nsec : times) {
-		spdlog::info("{}, {}", passed_nsec.first, passed_nsec.second);
-	}
+	writeMmapResultsToFile(times, num_bytes);
 
     return 0;
 }

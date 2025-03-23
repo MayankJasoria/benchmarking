@@ -158,29 +158,33 @@ int main(int argc, char **argv) {
 	while (!terminate) {
 		for (RecvIter<Dummy, entry_num> iter(recv_qp, recv_rs); iter.has_msgs(); iter.next()) {
 			auto imm_msg = iter.cur_msg().value();
-			u32 num_msg = std::get<0>(imm_msg);
-			u32 *count = &num_msg;
-			if (*count == 0) {
+			int received_cnt = static_cast<int>(std::get<0>(imm_msg));
+			if (unlikely(received_cnt == 0)) {
 				// termination signal received
 				terminate = true;
 				break;
+			}
+			if (unlikely(received_cnt == -1)) {
+				// reset message
+				recv_cnt = 0;
+				send_cnt = 0;
+				last_recvd_cnt = 0;
+				first_recv = true;
+				continue;
 			}
 			auto buf = static_cast<char *>(std::get<1>(imm_msg));
 			const std::string msg(buf, FLAGS_msg_size);  // wrap the received msg
 			recv_cnt++;
 
-			u16 received_cnt = *count;
-
 			if (first_recv) {
-				RDMA_ASSERT(received_cnt == (u16) 1);
+				RDMA_ASSERT(received_cnt == 1);
 				last_recvd_cnt = received_cnt;
-				send_cnt = received_cnt;;
+				send_cnt = received_cnt;
 				first_recv = false;
-			} else if ((last_recvd_cnt == UINT16_MAX && received_cnt == (u16) 0) || last_recvd_cnt + 1 == received_cnt) {
+			} else {
+				RDMA_ASSERT(received_cnt == last_recvd_cnt + 1);
 				send_cnt++;
 				last_recvd_cnt = received_cnt;
-			} else {
-				RDMA_ASSERT((u32) received_cnt != (u32) last_recvd_cnt + 1);
 			}
 
 			RDMA_ASSERT(recv_cnt == send_cnt);

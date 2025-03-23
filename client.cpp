@@ -244,6 +244,22 @@ void send_termination(const Arc<RC> &qp, const Arc<RegHandler> &local_mr) {
 	RDMA_ASSERT(res_p == IOCode::Ok);
 }
 
+void send_reset(const Arc<RC> &qp, const Arc<RegHandler> &local_mr) {
+	// don't care about contents
+	char* buf = (char *) local_mr->get_reg_attr().value().buf;
+	auto res_s = qp->send_normal(
+		{.op = IBV_WR_SEND_WITH_IMM,
+		 .flags = IBV_SEND_SIGNALED,
+		 .len = 0,
+		 .wr_id = 0},
+		{.local_addr = reinterpret_cast<RMem::raw_ptr_t>(buf),
+		 .remote_addr = 0,
+		 .imm_data = static_cast<u64>(-1)}); // message size 0, counter 0 => terminate
+	RDMA_ASSERT(res_s == IOCode::Ok);
+	auto res_p = qp->wait_rc_comp(); // confirming that message was sent successfully
+	RDMA_ASSERT(res_p == IOCode::Ok);
+}
+
 void writeResultsToFile(const std::vector<long*>& times, int msg_size) {
 	// Construct the output file name
 	std::string filename = "/hdd2/rdma-libs/results/rdma_send_recv_" + std::to_string(msg_size) + ".txt";
@@ -297,18 +313,20 @@ int main(int argc, char **argv) {
 	/* warm up run here */
 	int warm_up_msgs = 1000;
 	for (int i = 0; i < warm_up_msgs; ++i) {
-		double arr[3]; // we don't care about the returned values in warm up.
+		long arr[3]; // we don't care about the returned values in warm up.
 
 		string msg = saved_msgs[i];
 		publish_messages_and_receive_ack(qp, local_mr, msg, ++message_count, arr, recv_qp, recv_rs);
 		// ignore these times
 	}
 
+	send_reset(qp, local_mr);
+
 	/* test run */
 	int num_msgs = FLAGS_msg_count;
 	vector<long *> times(num_msgs);
 	message_count = 0;
-	RDMA_LOG(INFO) << "Sending " << num_msgs << "messages of size " << num_bytes << " for test.";
+	RDMA_LOG(INFO) << "Sending " << num_msgs << " messages of size " << num_bytes << " for test.";
 	for (int i = 0; i < num_msgs; ++i) {
 		long *arr = new long[3];
 

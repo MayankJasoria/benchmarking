@@ -111,7 +111,7 @@ int close_file(int fd) {
 	return 0;
 }
 
-void writeResultsToFile(const std::vector<pair<double, double>>& times, int msg_size) {
+void writeResultsToFile(const vector<pair<double, double>>& times, int msg_size) {
 	// Construct the output file name
 	std::string filename = "/hdd2/rdma-libs/results/async_io_" + std::to_string(msg_size) + ".txt";
 	std::ofstream outputFile(filename);
