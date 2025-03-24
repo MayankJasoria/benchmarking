@@ -304,18 +304,18 @@ int main(int argc, char **argv) {
 
 	RDMA_LOG(INFO) << "Sending 1000 messages of size " << num_bytes << " for warmup.";
 
-	int saved_msgs_count = max(1000, FLAGS_msg_count); // ensure there are sufficient random messages
+	int warm_up_msgs = 1000;
+	int saved_msgs_count = min(warm_up_msgs, FLAGS_msg_count); // ensure there are sufficient random messages
 	string saved_msgs[saved_msgs_count];
 	for (int i = 0; i < saved_msgs_count; ++i) {
 		saved_msgs[i] = generateRandomString(num_bytes);
 	}
 
 	/* warm up run here */
-	int warm_up_msgs = 1000;
-	for (int i = 0; i < warm_up_msgs; ++i) {
+	for (int i = 0, idx = 0; i < warm_up_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
 		long arr[3]; // we don't care about the returned values in warm up.
 
-		string msg = saved_msgs[i];
+		string msg = saved_msgs[idx];
 		publish_messages_and_receive_ack(qp, local_mr, msg, ++message_count, arr, recv_qp, recv_rs);
 		// ignore these times
 	}
@@ -327,10 +327,10 @@ int main(int argc, char **argv) {
 	vector<long *> times(num_msgs);
 	message_count = 0;
 	RDMA_LOG(INFO) << "Sending " << num_msgs << " messages of size " << num_bytes << " for test.";
-	for (int i = 0; i < num_msgs; ++i) {
+	for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
 		long *arr = new long[3];
 
-		string msg = saved_msgs[i];
+		string msg = saved_msgs[idx];
 		publish_messages_and_receive_ack(qp, local_mr, msg, ++message_count, arr, recv_qp, recv_rs);
 		times[i] = arr;
 	}

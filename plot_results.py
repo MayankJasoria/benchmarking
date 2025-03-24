@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import matplotlib.pyplot as plt  # Ensure pyplot is imported
+import matplotlib.pyplot as plt
 
 # Function to read data from a file and return a DataFrame
 def read_data(file_path):
@@ -145,27 +145,31 @@ for i, metric_type in enumerate(metrics):
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'mmap_io' in experiment_type:
             for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'rdma_send_recv' in experiment_type:
             for col in ['before wait', 'after wait', 'rtt']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
             for col in ['write_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
     ax.set_xscale('log', base=2)
-    ax.set_ylabel('Time (ns)')
+    ax.set_ylabel('Time (µs)')
     ax.grid(True)
 axes[-1].set_xlabel('Message Size (Bytes)')
 handles, labels = axes[0].get_legend_handles_labels()
@@ -187,27 +191,31 @@ for i, metric_type in enumerate(metrics):
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'mmap_io' in experiment_type:
             for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'rdma_send_recv' in experiment_type:
             for col in ['before wait', 'after wait', 'rtt']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
             for col in ['write_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
     ax.set_xscale('log', base=2)
-    ax.set_ylabel('Time (ns)')
+    ax.set_ylabel('Time (µs)')
     ax.grid(True)
 axes_truncated_all[-1].set_xlabel('Message Size (Bytes)')
 handles_truncated_all, labels_truncated_all = axes_truncated_all[0].get_legend_handles_labels()
@@ -229,32 +237,36 @@ for i, metric_type in enumerate(metrics):
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'mmap_io' in experiment_type:
             for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'rdma_send_recv' in experiment_type:
             for col in ['before wait', 'after wait', 'rtt']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
             for col in ['write_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
     ax.set_xscale('log', base=2)
-    ax.set_ylabel('Time (ns)')
+    ax.set_ylabel('Time (µs)')
     ax.grid(True)
 axes_beyond_all[-1].set_xlabel('Message Size (Bytes)')
 handles_beyond_all, labels_beyond_all = axes_beyond_all[0].get_legend_handles_labels()
 fig_beyond_all.legend(handles_beyond_all, labels_beyond_all, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, .1, 1, 1)) # Adjust layout to make space for the legend
+plt.tight_layout(rect=(0, .1, 1, 1))
 plt.savefig("plots/plot_beyond_truncated_all_conditions.png")
 
 # Create the figure and subplots for the original data (without the two conditions)
@@ -271,23 +283,26 @@ for i, metric_type in enumerate(metrics):
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'mmap_io' in experiment_type:
             for col in ['memcpy_duration_nsec']: # Removed msync_duration_nsec
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'rdma_send_recv' in experiment_type:
             for col in ['before wait', 'after wait', 'rtt']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
             pass # Removed write_duration_nsec
     ax.set_xscale('log', base=2)
-    ax.set_ylabel('Time (ns)')
+    ax.set_ylabel('Time (µs)')
     ax.grid(True)
 axes_removed[-1].set_xlabel('Message Size (Bytes)')
 handles_removed, labels_removed = axes_removed[0].get_legend_handles_labels()
@@ -309,23 +324,26 @@ for i, metric_type in enumerate(metrics):
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'mmap_io' in experiment_type:
             for col in ['memcpy_duration_nsec']: # Removed msync_duration_nsec
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'rdma_send_recv' in experiment_type:
             for col in ['before wait', 'after wait', 'rtt']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
             pass # Removed write_duration_nsec
     ax.set_xscale('log', base=2)
-    ax.set_ylabel('Time (ns)')
+    ax.set_ylabel('Time (µs)')
     ax.grid(True)
 axes_truncated_removed[-1].set_xlabel('Message Size (Bytes)')
 handles_truncated_removed, labels_truncated_removed = axes_truncated_removed[0].get_legend_handles_labels()
@@ -347,23 +365,26 @@ for i, metric_type in enumerate(metrics):
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'mmap_io' in experiment_type:
             for col in ['memcpy_duration_nsec']: # Removed msync_duration_nsec
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'rdma_send_recv' in experiment_type:
             for col in ['before wait', 'after wait', 'rtt']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
             pass # Removed write_duration_nsec
     ax.set_xscale('log', base=2)
-    ax.set_ylabel('Time (ns)')
+    ax.set_ylabel('Time (µs)')
     ax.grid(True)
 axes_beyond_removed[-1].set_xlabel('Message Size (Bytes)')
 handles_beyond_removed, labels_beyond_removed = axes_beyond_removed[0].get_legend_handles_labels()

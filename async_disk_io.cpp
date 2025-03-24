@@ -149,14 +149,14 @@ int main(int argc, char* argv[]) {
     int fd = open_file(filename.c_str());
 
 	int warm_up_msgs = 1000;
-	int saved_msgs_count = max(warm_up_msgs, FLAGS_msg_count); // ensure there are sufficient random messages
+	int saved_msgs_count = min(warm_up_msgs, FLAGS_msg_count); // ensure there are sufficient random messages
 	string saved_msgs[saved_msgs_count];
 	for (int i = 0; i < saved_msgs_count; ++i) {
 		saved_msgs[i] = generateRandomString(num_bytes);
 	}
 
 	// warm up
-	for (int i = 0; i < warm_up_msgs; ++i) {
+	for (int i = 0, idx = 0; i < warm_up_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
 		string msg = saved_msgs[i];
 		perform_write(fd, msg);
 	}
@@ -168,7 +168,7 @@ int main(int argc, char* argv[]) {
 	int num_msgs = FLAGS_msg_count;
 	vector<pair<double, double>> times(num_msgs);
 	int message_count = 0;
-	for (int i = 0; i < num_msgs; ++i) {
+	for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
 		string msg = saved_msgs[i];
 		pair<double, double> passed_nsec = perform_write(fd, msg);
 		times[i] = passed_nsec;

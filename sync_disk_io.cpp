@@ -117,15 +117,15 @@ int main(int argc, char* argv[]) {
     string filename = "/hdd2/rdma-libs/files/sync_append_test_" + to_string(num_bytes) + ".txt"; // Different filename for sync test
     int fd = open_file(filename.c_str());
 
-    int saved_msgs_count = max(1000, FLAGS_msg_count); // ensure there are sufficient random messages
+	int warm_up_msgs = 1000;
+    int saved_msgs_count = min(warm_up_msgs, FLAGS_msg_count); // ensure there are sufficient random messages
     string saved_msgs[saved_msgs_count];
     for (int i = 0; i < saved_msgs_count; ++i) {
        saved_msgs[i] = generateRandomString(num_bytes);
     }
 
     // warm up
-    int warm_up_msgs = 1000;
-    for (int i = 0; i < warm_up_msgs; ++i) {
+    for (int i = 0, idx = 0; i < warm_up_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
        string msg = saved_msgs[i];
        perform_write(fd, msg);
     }
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
 
     int num_msgs = FLAGS_msg_count;
     vector<long> times(num_msgs);
-    for (int i = 0; i < num_msgs; ++i) {
+    for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
        string msg = saved_msgs[i];
        long duration = perform_write(fd, msg);
        times[i] = duration;

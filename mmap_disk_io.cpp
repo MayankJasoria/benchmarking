@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) {
     }
 
 	int warm_up_msgs = 1000;
-    int saved_msgs_count = max(warm_up_msgs, FLAGS_msg_count);
+    int saved_msgs_count = min(warm_up_msgs, FLAGS_msg_count);
     string saved_msgs[saved_msgs_count];
     for (int i = 0; i < saved_msgs_count; ++i) {
         saved_msgs[i] = generateRandomString(num_bytes);
@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
 
 	// warm up
 	off_t current_offset = 0;
-	for (int i = 0; i < warm_up_msgs; ++i) {
+	for (int i = 0, idx = 0; i < warm_up_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
 		string msg = saved_msgs[i];
 		perform_mmap_write(mmap_info, msg, current_offset);
 		current_offset += msg.size();
@@ -171,7 +171,7 @@ int main(int argc, char* argv[]) {
     vector<pair<long, long>> times(num_msgs);
     int message_count = 0;
     current_offset = 0;
-    for (int i = 0; i < num_msgs; ++i) {
+    for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
         string msg = saved_msgs[i];
         pair<long, long> elapsed_nsec = perform_mmap_write(mmap_info, msg, current_offset);
         times[i] = elapsed_nsec;
