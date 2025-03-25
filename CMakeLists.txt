@@ -46,3 +46,5 @@ target_link_libraries(mmap_disk gflags spdlog::spdlog)
 
 add_executable(sync_disk sync_disk_io.cpp)
 target_link_libraries(sync_disk gflags spdlog::spdlog)
+add_executable(c_client client.c)
+add_executable(c_server server.c)
