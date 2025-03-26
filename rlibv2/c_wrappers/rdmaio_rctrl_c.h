@@ -4,13 +4,19 @@
 #include <stdbool.h>
 #include <stdint.h> // Include for int64_t
 #include "rdmaio_regattr_c.h"
-#include "rdmaio_nic_c.h" // Include for rdmaio_nic_t
-#include "rdmaio_rc_c.h"   // Include for rdmaio_rc_t
+#include "rdmaio_nic_c.h"
+#include "rdmaio_rc_c.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*!
  * @brief Opaque type representing the RDMA Control Path Daemon (RCtrl).
  */
-typedef struct rdmaio_rctrl_t rdmaio_rctrl_t;
+typedef struct rdmaio_rctrl_t {
+    void* ctrl;
+} rdmaio_rctrl_t;
 
 /*!
  * @brief Creates an RCtrl object.
@@ -58,12 +64,16 @@ rdmaio_rc_t* rctrl_query_qp(rdmaio_rctrl_t* ctrl, const char* name);
  * @param nic A pointer to the opened NIC object.
  * @return True if the registration was successful, false otherwise.
  */
-bool rctrl_register_nic(rdmaio_rctrl_t* ctrl, const char* name, rdmaio_nic_t* nic);
+bool rctrl_register_nic(rdmaio_rctrl_t* ctrl_ptr, uint64_t nic_id, rdmaio_nic_t* nic_ptr);
 
 /*!
  * @brief Destroys the RCtrl object and releases its resources.
  * @param ctrl A pointer to the RCtrl object to destroy.
  */
 void rctrl_destroy(rdmaio_rctrl_t* ctrl);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_RCTRL_C_H

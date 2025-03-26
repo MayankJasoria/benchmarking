@@ -1,4 +1,3 @@
-// rlibv2/c_wrappers/rdmaio_nic_c.h
 #ifndef RDMAIO_NIC_C_H
 #define RDMAIO_NIC_C_H
 
@@ -6,6 +5,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "rdmaio_result_c.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*!
  * @brief Represents the index of an RDMA device.
@@ -18,7 +21,9 @@ typedef struct rdmaio_devidx_t {
 /*!
  * @brief Opaque type representing an RDMA Network Interface Controller (NIC).
  */
-typedef void rdmaio_nic_t;
+typedef struct rdmaio_nic_t {
+    void* nic;
+} rdmaio_nic_t;
 
 /*!
  * @brief Queries all available RDMA NICs on the host machine.
@@ -30,7 +35,7 @@ typedef void rdmaio_nic_t;
 rdmaio_devidx_t* rnic_info_query_dev_names(size_t* count);
 
 /*!
- * @brief Frees the memory allocated by rnic_info_query_dev_names().
+ * @brief Frees the memory allocated by rnic_info_free_dev_names().
  * @param dev_idxs The array of NIC device indices to free.
  */
 void rnic_info_free_dev_names(rdmaio_devidx_t* dev_idxs);
@@ -78,5 +83,9 @@ rdmaio_iocode_t rnic_is_active(const rdmaio_nic_t* nic, char* err_msg, size_t er
  * @param nic A pointer to the RDMA NIC object to destroy.
  */
 void rnic_destroy(rdmaio_nic_t* nic);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_NIC_C_H

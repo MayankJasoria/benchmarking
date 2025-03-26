@@ -102,11 +102,9 @@ void init_send_queue(rdmaio_nic_t* nic, rdmaio_rc_t** qp_out, rdmaio_reg_handler
 
     sleep(1);
 
-    rdmaio_qpconfig_t qp_config_connect; // Use a stack variable for connect config (assuming default)
-    char reg_mem_name_str[50];
-    sprintf(reg_mem_name_str, "%ld", FLAGS_reg_mem_name);
+    rdmaio_qpconfig_t* qp_config_connect = rdmaio_qpconfig_create_default();
     rdmaio_iocode_t qp_res = rdmaio_connect_manager_cc_rc_msg(cm, "client_qp", FLAGS_cq_name,
-                                                               FLAGS_max_msg_size, qp, (uint32_t)FLAGS_use_nic_idx, &qp_config_connect);
+                                                               FLAGS_max_msg_size, qp, (uint32_t)FLAGS_use_nic_idx, qp_config_connect);
     if (qp_res != RDMAIO_OK) {
         fprintf(stderr, "Failed to connect RC QP: %d\n", qp_res);
         rdmaio_connect_manager_destroy(cm);
@@ -118,7 +116,7 @@ void init_send_queue(rdmaio_nic_t* nic, rdmaio_rc_t** qp_out, rdmaio_reg_handler
 
     // 3. fetch the remote MR for usage
     rdmaio_regattr_t remote_attr;
-    rdmaio_iocode_t fetch_res = rdmaio_connect_manager_fetch_remote_mr(cm, reg_mem_name_str, &remote_attr);
+    rdmaio_iocode_t fetch_res = rdmaio_connect_manager_fetch_remote_mr(cm, FLAGS_reg_mem_name, &remote_attr);
     if (fetch_res != RDMAIO_OK) {
         fprintf(stderr, "Failed to fetch remote MR: %d\n", fetch_res);
         rdmaio_connect_manager_destroy(cm);
@@ -334,8 +332,12 @@ void init_recv_queue(rdmaio_rctrl_t* ctrl, void* nic, void* manager, rdmaio_rc_t
     }
 
     // 9. Set output parameters
-    if (recv_qp) *recv_qp = server_qp;
-    if (recv_rs) *recv_rs = server_recv_rs;
+    if (recv_qp) {
+    	*recv_qp = server_qp;
+	}
+    if (recv_rs) {
+	    *recv_rs = server_recv_rs;
+    }
 
     // Clean up locally created resources
     simple_allocator_destroy(allocator);
@@ -407,7 +409,7 @@ void publish_messages_and_receive_ack(rdmaio_rc_t* qp, rdmaio_reg_handler_t* loc
     clock_gettime(CLOCK_MONOTONIC_RAW, &before_wait);
 
     struct ibv_wc wc;
-    int res_p = rdmaio_rc_wait_rc_comp(qp, -1.0, NULL, &wc); // Wait indefinitely
+    int res_p = rdmaio_rc_wait_rc_comp(qp, NULL, &wc); // Wait indefinitely
     if (res_p != 0) {
         fprintf(stderr, "Error waiting for send completion: %d\n", res_p);
         return;
@@ -474,7 +476,7 @@ void send_reset(rdmaio_rc_t* qp, rdmaio_reg_handler_t* local_mr) {
 	}
 
 	struct ibv_wc wc;
-	int res_p = rdmaio_rc_wait_rc_comp(qp, -1.0, NULL, &wc);
+	int res_p = rdmaio_rc_wait_rc_comp(qp, NULL, &wc);
 	if (res_p != 0) {
 		fprintf(stderr, "Error waiting for termination send completion: %d\n", res_p);
 	}
@@ -508,7 +510,7 @@ void send_termination(rdmaio_rc_t* qp, rdmaio_reg_handler_t* local_mr) {
 	}
 
 	struct ibv_wc wc;
-	int res_p = rdmaio_rc_wait_rc_comp(qp, -1.0, NULL, &wc);
+	int res_p = rdmaio_rc_wait_rc_comp(qp, NULL, &wc);
 	if (res_p != 0) {
 		fprintf(stderr, "Error waiting for termination send completion: %d\n", res_p);
 	}

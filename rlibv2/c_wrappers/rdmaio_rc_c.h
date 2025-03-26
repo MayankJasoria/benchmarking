@@ -5,6 +5,10 @@
 #include <stdint.h>
 #include <infiniband/verbs.h> // Include libibverbs header
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Forward declaration for the main RC type
 typedef struct rdmaio_rc_t rdmaio_rc_t;
 
@@ -13,8 +17,16 @@ typedef struct rdmaio_rc_t rdmaio_rc_t;
 #include "rdmaio_regattr_c.h"
 #include "rdmaio_qpattr_c.h"
 #include "rdmaio_result_c.h"
+#include "rdmaio_nic_c.h"
 
 // --- RC Class ---
+
+/*!
+ * @brief Represents a reliable connected (RC) queue pair.
+ */
+struct rdmaio_rc_t {
+    void* rc; // Opaque pointer to the RC object
+};
 
 /*!
  * @brief Creates a reliable connected (RC) queue pair.
@@ -23,7 +35,7 @@ typedef struct rdmaio_rc_t rdmaio_rc_t;
  * @param recv_cq Completion queue to be used for receive operations. Pass NULL if not needed.
  * @return A pointer to the created RC queue pair object, or NULL on failure.
  */
-rdmaio_rc_t* rdmaio_rc_create(void* nic, const rdmaio_qpconfig_t* config, struct ibv_cq* recv_cq);
+rdmaio_rc_t* rdmaio_rc_create(rdmaio_nic_t* nic, const rdmaio_qpconfig_t* config, struct ibv_cq* recv_cq);
 
 /*!
  * @brief Destroys an RC queue pair object.
@@ -140,7 +152,7 @@ int rdmaio_rc_poll_rc_comp(rdmaio_rc_t* rc, uint64_t* out_user_wr, struct ibv_wc
  * @param out_wc Pointer to a structure where the work completion details will be stored. Can be NULL.
  * @return 0 if a completion was found, -1 on error, 1 on timeout.
  */
-int rdmaio_rc_wait_rc_comp(rdmaio_rc_t* rc, double timeout, uint64_t* out_user_wr, struct ibv_wc* out_wc);
+int rdmaio_rc_wait_rc_comp(rdmaio_rc_t* rc, uint64_t* out_user_wr, struct ibv_wc* out_wc);
 
 /*!
  * @brief Gets the maximum send size supported by the RC queue pair.
@@ -154,5 +166,9 @@ int rdmaio_rc_max_send_sz(const rdmaio_rc_t* rc);
  * @param rc_ptr the RC queue pair object
  */
 void rdmaio_rc_destroy(rdmaio_rc_t* rc_ptr);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_RC_C_H
