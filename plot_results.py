@@ -36,13 +36,13 @@ for filename in os.listdir(directory):
         # Determine columns to be used for statistics calculation based on experiment type
         columns = []
         if 'async_io' in experiment_type:
-            columns = ['before wait', 'after wait']
+            columns = ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']
         elif 'mmap_io' in experiment_type:
             columns = ['memcpy_duration_nsec', 'msync_duration_nsec']
         elif 'rdma_send_recv' in experiment_type:
             columns = ['before wait', 'after wait', 'rtt']
         elif 'sync_io' in experiment_type:
-            columns = ['write_duration_nsec']
+            columns = ['write_duration_nsec', 'flush_duration_nsec']
         else:
             continue
 
@@ -92,7 +92,7 @@ condition_colors_all = {}
 color_index_all = 0
 for experiment_type in unique_experiment_types:
     if 'async_io' in experiment_type:
-        for col in ['before wait', 'after wait']:
+        for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
             condition_colors_all[(experiment_type, col)] = colors[color_index_all % 8]
             color_index_all += 1
     elif 'mmap_io' in experiment_type:
@@ -104,7 +104,7 @@ for experiment_type in unique_experiment_types:
             condition_colors_all[(experiment_type, col)] = colors[color_index_all % 8]
             color_index_all += 1
     elif 'sync_io' in experiment_type:
-        for col in ['write_duration_nsec']:
+        for col in ['write_duration_nsec', 'flush_duration_nsec']:
             condition_colors_all[(experiment_type, col)] = colors[color_index_all % 8]
             color_index_all += 1
 
@@ -114,7 +114,7 @@ color_index_removed = 0
 unique_experiment_types_removed_cmap = unique_experiment_types # Reusing for simplicity
 for experiment_type in unique_experiment_types_removed_cmap:
     if 'async_io' in experiment_type:
-        for col in ['before wait', 'after wait']:
+        for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
             condition_colors_removed[(experiment_type, col)] = colors[color_index_removed % 8]
             color_index_removed += 1
     elif 'mmap_io' in experiment_type:
@@ -126,7 +126,7 @@ for experiment_type in unique_experiment_types_removed_cmap:
             condition_colors_removed[(experiment_type, col)] = colors[color_index_removed % 8]
             color_index_removed += 1
     elif 'sync_io' in experiment_type:
-        pass # Removed write_duration_nsec
+        pass # Removed write_duration_nsec and flush_duration_nsec
 
 # Create the 'plots' directory if it doesn't exist
 os.makedirs("plots", exist_ok=True)
@@ -141,7 +141,7 @@ for i, metric_type in enumerate(metrics):
         subset = plot_df[plot_df['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
         if 'async_io' in experiment_type:
-            for col in ['before wait', 'after wait']:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
@@ -162,7 +162,7 @@ for i, metric_type in enumerate(metrics):
                     subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec']:
+            for col in ['write_duration_nsec', 'flush_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
@@ -187,7 +187,7 @@ for i, metric_type in enumerate(metrics):
         subset = truncated_df_all[truncated_df_all['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
         if 'async_io' in experiment_type:
-            for col in ['before wait', 'after wait']:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
@@ -208,7 +208,7 @@ for i, metric_type in enumerate(metrics):
                     subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec']:
+            for col in ['write_duration_nsec', 'flush_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
@@ -233,7 +233,7 @@ for i, metric_type in enumerate(metrics):
         subset = beyond_truncated_df_all[beyond_truncated_df_all['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
         if 'async_io' in experiment_type:
-            for col in ['before wait', 'after wait']:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
@@ -254,7 +254,7 @@ for i, metric_type in enumerate(metrics):
                     subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec']:
+            for col in ['write_duration_nsec', 'flush_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_all.get((experiment_type, col))
@@ -279,7 +279,7 @@ for i, metric_type in enumerate(metrics):
         subset = plot_df[plot_df['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
         if 'async_io' in experiment_type:
-            for col in ['before wait', 'after wait']:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
@@ -300,7 +300,12 @@ for i, metric_type in enumerate(metrics):
                     subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
-            pass # Removed write_duration_nsec
+            for col in ['write_duration_nsec', 'flush_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -320,7 +325,7 @@ for i, metric_type in enumerate(metrics):
         subset = truncated_df_removed[truncated_df_removed['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
         if 'async_io' in experiment_type:
-            for col in ['before wait', 'after wait']:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
@@ -341,7 +346,12 @@ for i, metric_type in enumerate(metrics):
                     subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
-            pass # Removed write_duration_nsec
+            for col in ['write_duration_nsec', 'flush_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -361,7 +371,7 @@ for i, metric_type in enumerate(metrics):
         subset = beyond_truncated_df_removed[beyond_truncated_df_removed['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
         if 'async_io' in experiment_type:
-            for col in ['before wait', 'after wait']:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
                 metric_col = f'{col}_{metric_type}'
                 if metric_col in subset_sorted.columns:
                     color = condition_colors_removed.get((experiment_type, col))
@@ -382,7 +392,12 @@ for i, metric_type in enumerate(metrics):
                     subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
                     ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
         elif 'sync_io' in experiment_type:
-            pass # Removed write_duration_nsec
+            for col in ['write_duration_nsec', 'flush_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
