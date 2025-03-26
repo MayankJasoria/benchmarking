@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <cstring>
 #include <random>
+#include <vector>
+#include <utility>
 #include <gflags/gflags.h>
 #include "spdlog/spdlog.h"
 
@@ -32,7 +34,7 @@ string generateRandomString(size_t numBytes) {
     return result;
 }
 
-long perform_write (int fd, string &data_to_write) {
+pair<long, long> perform_write(int fd, string &data_to_write) {
     size_t write_size = data_to_write.size();
     off_t offset = 0; // Offset is generally ignored in append mode
 
@@ -47,19 +49,25 @@ long perform_write (int fd, string &data_to_write) {
         exit(EXIT_FAILURE);
     }
 
+    // 2. Capture time after write completes (data in kernel buffer)
+    auto write_complete_time = chrono::high_resolution_clock::now();
+    long write_complete_duration = chrono::duration_cast<chrono::nanoseconds>(write_complete_time - start_time).count();
+    spdlog::debug("Time taken for sync write to complete (in kernel): {} nanoseconds", write_complete_duration);
+
     // Force write to disk
+    auto fsync_start_time = chrono::high_resolution_clock::now();
     if (fsync(fd) < 0) {
         spdlog::error("Error flushing file: {}", strerror(errno));
         close(fd);
         exit(EXIT_FAILURE);
     }
 
-    // 2. Capture time difference
-    auto end_time = chrono::high_resolution_clock::now();
-    long total_duration = chrono::duration_cast<chrono::nanoseconds>(end_time - start_time).count();
-    spdlog::debug("Time taken for sync write: {} nanoseconds", total_duration);
+    // 3. Capture time after flush completes (data on disk)
+    auto flush_complete_time = chrono::high_resolution_clock::now();
+    long flush_complete_duration = chrono::duration_cast<chrono::nanoseconds>(flush_complete_time - start_time).count();
+    spdlog::debug("Time taken for sync write and flush: {} nanoseconds", flush_complete_duration);
 
-    return total_duration;
+    return make_pair(write_complete_duration, flush_complete_duration);
 }
 
 int open_file(const char* filename) {
@@ -80,7 +88,7 @@ int close_file(int fd) {
     return 0;
 }
 
-void writeResultsToFile(const std::vector<long>& times, int msg_size) {
+void writeResultsToFile(const std::vector<std::pair<long, long>>& times, int msg_size) {
     // Construct the output file name
     std::string filename = "/hdd2/rdma-libs/results/sync_io_" + std::to_string(msg_size) + ".txt";
     std::ofstream outputFile(filename);
@@ -88,11 +96,11 @@ void writeResultsToFile(const std::vector<long>& times, int msg_size) {
     // Check if the file was opened successfully
     if (outputFile.is_open()) {
        // Write the header row
-       outputFile << "write_duration_nsec\n";
+       outputFile << "write_duration_nsec\tflush_duration_nsec\n";
 
        // Write the data from the 'times' vector
-       for (long time : times) {
-          outputFile << time << "\n";
+       for (const auto& time_pair : times) {
+          outputFile << time_pair.first << "\t" << time_pair.second << "\n";
        }
 
        // Close the file
@@ -117,7 +125,7 @@ int main(int argc, char* argv[]) {
     string filename = "/hdd2/rdma-libs/files/sync_append_test_" + to_string(num_bytes) + ".txt"; // Different filename for sync test
     int fd = open_file(filename.c_str());
 
-	int warm_up_msgs = 1000;
+    int warm_up_msgs = 1000;
     int saved_msgs_count = min(warm_up_msgs, FLAGS_msg_count); // ensure there are sufficient random messages
     string saved_msgs[saved_msgs_count];
     for (int i = 0; i < saved_msgs_count; ++i) {
@@ -135,11 +143,11 @@ int main(int argc, char* argv[]) {
     lseek(fd, 0, SEEK_SET);
 
     int num_msgs = FLAGS_msg_count;
-    vector<long> times(num_msgs);
+    vector<pair<long, long>> times(num_msgs);
     for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
        string msg = saved_msgs[i];
-       long duration = perform_write(fd, msg);
-       times[i] = duration;
+       pair<long, long> durations = perform_write(fd, msg);
+       times[i] = durations;
     }
 
     close(fd);
