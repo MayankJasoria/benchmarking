@@ -83,8 +83,8 @@ pair<long, long> perform_mmap_write(MmapInfo& mmap_info, const string& data_to_w
     auto initialization_duration = chrono::duration_cast<chrono::nanoseconds>(before_wait_time - start_time).count();
 	spdlog::debug("Time taken for memcpy at offset {}: {} nanoseconds", offset, initialization_duration);
 
-	// Wait for write to be flushed to disk
-	if (msync(mmap_info.mapped_region, mmap_info.map_size, MS_SYNC) == -1) {
+	// Wait for write to be flushed to disk (only the written region)
+	if (msync(static_cast<char*>(mmap_info.mapped_region) + offset, write_size, MS_SYNC) == -1) {
 		spdlog::error("Error syncing mapped region to file: {}", strerror(errno));
 		exit(EXIT_FAILURE);
 	}

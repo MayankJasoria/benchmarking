@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <cstring>
 #include <random>
+#include <vector>
+#include <array>
 #include <gflags/gflags.h>
 #include "spdlog/spdlog.h"
 
@@ -33,8 +35,8 @@ string generateRandomString(size_t numBytes) {
 	return result;
 }
 
-pair<double, double> perform_write (int fd, string &data_to_write) {
-	size_t write_size = data_to_write.size();
+array<long, 3> perform_write(int fd, string &data_to_write) {
+    size_t write_size = data_to_write.size();
     off_t offset = 0; // Offset is generally ignored in append mode
 
     struct aiocb cb;
@@ -71,8 +73,23 @@ pair<double, double> perform_write (int fd, string &data_to_write) {
 
     // 5. Capture time difference (call this after waiting for completion)
     auto after_wait_time = chrono::high_resolution_clock::now();
-    auto total_duration = chrono::duration_cast<chrono::nanoseconds>(after_wait_time - start_time).count();
-    spdlog::debug("Total time taken for async write (including waiting): {} nanoseconds", total_duration);
+    auto duration_before_fsync = chrono::duration_cast<chrono::nanoseconds>(after_wait_time - start_time).count();
+    spdlog::debug("Total time taken for async write (before fsync): {} nanoseconds", duration_before_fsync);
+
+    // 6. Force write to disk (fsync)
+    auto fsync_start_time = chrono::high_resolution_clock::now();
+    if (fsync(fd) < 0) {
+        spdlog::error("Error flushing file (fsync): {}", strerror(errno));
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+	auto fsync_end_time = chrono::high_resolution_clock::now();
+	auto fsync_duration = chrono::duration_cast<chrono::nanoseconds>(fsync_end_time - fsync_start_time).count();
+	spdlog::debug("Time taken for fsync: {} nanoseconds", fsync_duration);
+
+	// 7. Capture total duration including fsync
+	auto total_duration_with_fsync = chrono::duration_cast<chrono::nanoseconds>(fsync_end_time - start_time).count();
+	spdlog::debug("Total time taken for async write (with fsync): {} nanoseconds", total_duration_with_fsync);
 
     // Check for write errors
     int error = aio_error(&cb);
@@ -83,14 +100,14 @@ pair<double, double> perform_write (int fd, string &data_to_write) {
         ssize_t bytes_written = aio_return(&cb);
         if (bytes_written == write_size) {
             spdlog::debug("Successfully wrote {} bytes", bytes_written);
-        	return make_pair(initiation_duration, total_duration);
+			return {initiation_duration, duration_before_fsync, total_duration_with_fsync};
         }
         spdlog::error("Error in asynchronous write return. Wrote {} bytes", bytes_written);
         exit(EXIT_FAILURE);
     }
 
 	// prevent compiler errors
-	return make_pair(initiation_duration, total_duration);
+	return {initiation_duration, duration_before_fsync, total_duration_with_fsync};
 }
 
 int open_file(const char* filename) {
@@ -111,26 +128,26 @@ int close_file(int fd) {
 	return 0;
 }
 
-void writeResultsToFile(const vector<pair<double, double>>& times, int msg_size) {
-	// Construct the output file name
-	std::string filename = "/hdd2/rdma-libs/results/async_io_" + std::to_string(msg_size) + ".txt";
-	std::ofstream outputFile(filename);
+void writeResultsToFile(const vector<array<long, 3>>& times, int msg_size) {
+    // Construct the output file name
+    std::string filename = "/hdd2/rdma-libs/results/async_io_" + std::to_string(msg_size) + ".txt";
+    std::ofstream outputFile(filename);
 
 	// Check if the file was opened successfully
 	if (outputFile.is_open()) {
 		// Write the header row
-		outputFile << "before wait\tafter wait\n";
+		outputFile << "initiation_duration_nsec\twrite_duration_nsec\tfsync_duration_nsec\n";
 
 		// Write the data from the 'times' vector
-		for (pair time : times) {
-			outputFile << time.first << "\t" << time.second << "\n";
+		for (const auto& time_array : times) {
+		  outputFile << time_array[0] << "\t" << time_array[1] << "\t" << time_array[2] << "\n";
 		}
 
 		// Close the file
 		outputFile.close();
-		std::cout << "Data written to: " << filename << std::endl;
+		std::cout << "Data written to: " << filename << '\n';
 	} else {
-		std::cerr << "Unable to open file: " << filename << std::endl;
+		std::cerr << "Unable to open file: " << filename << '\n';
 	}
 }
 
@@ -166,12 +183,12 @@ int main(int argc, char* argv[]) {
 	lseek(fd, 0, SEEK_SET);
 
 	int num_msgs = FLAGS_msg_count;
-	vector<pair<double, double>> times(num_msgs);
+	vector<array<long, 3>> times(num_msgs);
 	int message_count = 0;
 	for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
-		string msg = saved_msgs[i];
-		pair<double, double> passed_nsec = perform_write(fd, msg);
-		times[i] = passed_nsec;
+	string msg = saved_msgs[i];
+		array<long, 3> durations = perform_write(fd, msg);
+		times[i] = durations;
 		message_count++;
 	}
 
