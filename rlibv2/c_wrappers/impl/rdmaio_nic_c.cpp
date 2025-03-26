@@ -1,9 +1,10 @@
-#include "../rdmaio_nic_c.h"
+#include "rdmaio_nic_c.h"
 #include "../../core/nic.hh"
-#include "../../core/rnicinfo.hh"
+#include "../../core/nicinfo.hh"
 #include "../../core/common.hh"
 #include <vector>
 #include <cstring>
+#include <optional>
 
 using namespace rdmaio;
 
@@ -31,42 +32,50 @@ void rnic_info_free_dev_names(rdmaio_devidx_t* dev_idxs) {
 }
 
 rdmaio_nic_t* rnic_create(rdmaio_devidx_t idx, uint8_t gid) {
-    auto nic_option = RNic::create({.dev_id = idx.dev_id, .port_id = idx.port_id}, gid);
-    if (nic_option.is_some()) {
-        return new rdmaio_nic_t{nic_option.value().get()};
+    auto nic_option = RNic::create({.dev_id = static_cast<unsigned int>(idx.dev_id),
+                              .port_id = static_cast<unsigned int>(idx.port_id)}, gid);
+    if (nic_option.has_value()) {
+       Arc<RNic>* arc_nic = new Arc<RNic>(nic_option.value());
+       rdmaio_nic_t* nic_wrapper = static_cast<rdmaio_nic_t*>(malloc(sizeof(rdmaio_nic_t)));
+       if (nic_wrapper) {
+          nic_wrapper->nic = static_cast<void*>(arc_nic);
+          return nic_wrapper;
+       } else {
+          delete arc_nic; // Clean up if wrapper allocation fails
+       }
     }
     return nullptr;
 }
 
 bool rnic_valid(const rdmaio_nic_t* nic_ptr) {
-    if (nic_ptr) {
-        return static_cast<const RNic*>(nic_ptr)->valid();
+    if (nic_ptr && nic_ptr->nic) {
+        return (*static_cast<Arc<RNic>*>(nic_ptr->nic))->valid();
     }
     return false;
 }
 
 void* rnic_get_ctx(const rdmaio_nic_t* nic_ptr) {
-    if (nic_ptr) {
-        return static_cast<const RNic*>(nic_ptr)->get_ctx();
+    if (nic_ptr && nic_ptr->nic) {
+        return (*static_cast<Arc<RNic>*>(nic_ptr->nic))->get_ctx();
     }
     return nullptr;
 }
 
 void* rnic_get_pd(const rdmaio_nic_t* nic_ptr) {
-    if (nic_ptr) {
-        return static_cast<const RNic*>(nic_ptr)->get_pd();
+    if (nic_ptr && nic_ptr->nic) {
+        return (*static_cast<Arc<RNic>*>(nic_ptr->nic))->get_pd();
     }
     return nullptr;
 }
 
 rdmaio_iocode_t rnic_is_active(const rdmaio_nic_t* nic_ptr, char* err_msg, size_t err_msg_size) {
-    if (nic_ptr) {
-        auto result = static_cast<const RNic*>(nic_ptr)->is_active();
-        if (result == IOCode::Ok) {
+    if (nic_ptr && nic_ptr->nic) {
+        auto result = (*static_cast<Arc<RNic>*>(nic_ptr->nic))->is_active();
+        if (result.code.c == IOCode::Ok) {
             return RDMAIO_OK;
         } else {
             if (err_msg && err_msg_size > 0) {
-                strncpy(err_msg, std::get<0>(result.desc).c_str(), err_msg_size - 1);
+                strncpy(err_msg, result.desc.c_str(), err_msg_size - 1);
                 err_msg[err_msg_size - 1] = '\0';
             }
             return RDMAIO_ERR;
@@ -76,13 +85,12 @@ rdmaio_iocode_t rnic_is_active(const rdmaio_nic_t* nic_ptr, char* err_msg, size_
 }
 
 void rnic_destroy(rdmaio_nic_t* nic_ptr) {
-    if (nic_ptr) {
-        delete static_cast<RNic*>(nic_ptr);
+    if (nic_ptr && nic_ptr->nic) {
+        delete static_cast<Arc<RNic>*>(nic_ptr->nic);
+        free(nic_ptr);
+    } else if (nic_ptr) {
+        free(nic_ptr);
     }
 }
 
 } // extern "C"
-
-struct rdmaio_nic_t {
-    rdmaio::RNic* nic;
-};

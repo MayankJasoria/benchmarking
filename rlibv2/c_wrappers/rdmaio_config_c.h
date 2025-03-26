@@ -3,6 +3,10 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct rdmaio_qpconfig_t {
 	int access_flags;
 	int max_rd_atomic;
@@ -27,5 +31,9 @@ rdmaio_qpconfig_t* rdmaio_qpconfig_create_default();
  * @param config The configuration object to destroy.
  */
 void rdmaio_qpconfig_destroy(rdmaio_qpconfig_t* config);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_CONFIG_C_H

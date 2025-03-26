@@ -8,6 +8,10 @@
 #include "rdmaio_nic_c.h"
 #include "rdmaio_regattr_c.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*!
  * @brief Opaque type representing a memory registration handler.
  */
@@ -40,5 +44,9 @@ rdmaio_regattr_t rdmaio_reg_handler_get_attr(rdmaio_reg_handler_t* handler);
  * @param handler A pointer to the registration handler.
  */
 void rdmaio_reg_handler_destroy(rdmaio_reg_handler_t* handler);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_REG_HANDLER_C_H

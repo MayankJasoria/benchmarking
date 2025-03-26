@@ -8,6 +8,13 @@
 #include "rdmaio_result_c.h"
 #include "rdmaio_config_c.h"
 #include "rdmaio_regattr_c.h"
+#include "rdmaio_rc_c.h"
+#include "rdmaio_rctrl_c.h"
+#include "rdmaio_nic_c.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Forward declaration for the opaque ConnectManager type
 typedef struct rdmaio_connect_manager_t rdmaio_connect_manager_t;
@@ -43,7 +50,7 @@ rdmaio_iocode_t rdmaio_connect_manager_cc_rc_msg(rdmaio_connect_manager_t* cm,
                                                         const char* qp_name,
                                                         const char* channel_name,
                                                         size_t max_msg_size,
-                                                        void* rc, // Assuming this is the wrapped RC object
+                                                        rdmaio_rc_t* rc,
                                                         uint32_t remote_nic_id,
                                                         const rdmaio_qpconfig_t* config);
 
@@ -55,7 +62,7 @@ rdmaio_iocode_t rdmaio_connect_manager_cc_rc_msg(rdmaio_connect_manager_t* cm,
  * @return The status of the operation.
  */
 rdmaio_iocode_t rdmaio_connect_manager_fetch_remote_mr(rdmaio_connect_manager_t* cm,
-                                                               const char* id,
+                                                               uint64_t id,
                                                                rdmaio_regattr_t* out_attr);
 
 /*!
@@ -63,5 +70,9 @@ rdmaio_iocode_t rdmaio_connect_manager_fetch_remote_mr(rdmaio_connect_manager_t*
  * @param cm The ConnectManager object to destroy.
  */
 void rdmaio_connect_manager_destroy(rdmaio_connect_manager_t* cm);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_CONNECT_MANAGER_C_H

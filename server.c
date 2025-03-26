@@ -80,9 +80,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    char reg_mem_name_str[50];
-    sprintf(reg_mem_name_str, "%ld", FLAGS_reg_mem_name);
-    if (!rctrl_register_nic(ctrl, reg_mem_name_str, nic)) {
+    if (!rctrl_register_nic(ctrl, FLAGS_reg_mem_name, nic)) {
         fprintf(stderr, "Failed to register NIC.\n");
         rnic_info_free_dev_names(dev_idx_array);
         rnic_destroy(nic);
@@ -91,9 +89,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    char reg_ack_mem_name_str[50];
-    sprintf(reg_ack_mem_name_str, "%ld", FLAGS_reg_ack_mem_name);
-    if (!rctrl_register_nic(ctrl, reg_ack_mem_name_str, nic)) {
+    if (!rctrl_register_nic(ctrl, FLAGS_reg_mem_name, nic)) {
         fprintf(stderr, "Failed to register NIC.\n");
         rnic_info_free_dev_names(dev_idx_array);
         rnic_destroy(nic);
@@ -181,7 +177,7 @@ int main(int argc, char **argv) {
                         fprintf(stderr, "Error sending ack: %s\n", error_msg);
                     }
                     struct ibv_wc wc;
-                    int res_p = rdmaio_rc_wait_rc_comp(send_qp, -1.0, NULL, &wc);
+                    int res_p = rdmaio_rc_wait_rc_comp(send_qp, NULL, &wc);
                     if (res_p != 0) {
                         fprintf(stderr, "Error waiting for ack send completion: %d\n", res_p);
                     }
@@ -231,8 +227,6 @@ void init_send_queue(rdmaio_nic_t* nic, rdmaio_rc_t** qp_out, rdmaio_reg_handler
     }
     sleep(1);
     rdmaio_qpconfig_t qp_config_connect;
-    char reg_mem_name_str[50];
-    sprintf(reg_mem_name_str, "%ld", FLAGS_reg_ack_mem_name); // Server fetches ACK mem
     rdmaio_iocode_t qp_res = rdmaio_connect_manager_cc_rc_msg(cm, "server_qp", FLAGS_ack_cq_name,
                                                                1, qp, (uint32_t)FLAGS_use_nic_idx, &qp_config_connect);
     if (qp_res != RDMAIO_OK) {
@@ -244,7 +238,7 @@ void init_send_queue(rdmaio_nic_t* nic, rdmaio_rc_t** qp_out, rdmaio_reg_handler
         return;
     }
     rdmaio_regattr_t remote_attr;
-    rdmaio_iocode_t fetch_res = rdmaio_connect_manager_fetch_remote_mr(cm, reg_mem_name_str, &remote_attr);
+    rdmaio_iocode_t fetch_res = rdmaio_connect_manager_fetch_remote_mr(cm, FLAGS_reg_ack_mem_name, &remote_attr);
     if (fetch_res != RDMAIO_OK) {
         fprintf(stderr, "Failed to fetch remote MR: %d\n", fetch_res);
         rdmaio_connect_manager_destroy(cm);

@@ -1,4 +1,3 @@
-// rlibv2/c_wrappers/rdmaio_mem_c.h
 #ifndef RDMAIO_MEM_C_H
 #define RDMAIO_MEM_C_H
 
@@ -6,10 +5,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*!
  * @brief Opaque type representing an RDMA memory region.
  */
-typedef struct rdmaio_rmem_t rdmaio_rmem_t;
+typedef struct rdmaio_rmem_t {
+  void* mem;
+} rdmaio_rmem_t;
 
 /*!
  * @brief Creates an RMem object.
@@ -30,5 +35,9 @@ bool rmem_valid(rdmaio_rmem_t* mem);
  * @param mem A pointer to the RMem object to destroy.
  */
 void rmem_destroy(rdmaio_rmem_t* mem);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // RDMAIO_MEM_C_H

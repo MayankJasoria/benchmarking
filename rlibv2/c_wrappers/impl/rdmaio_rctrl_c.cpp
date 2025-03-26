@@ -7,81 +7,95 @@
 #include <string>
 #include <memory>
 #include <cstdio> // For fprintf
+#include <optional> // Include for std::optional
 
 using namespace rdmaio;
+using namespace rdmaio::rmem;
 
 extern "C" {
 
 rdmaio_rctrl_t* rctrl_create(unsigned short port, const char* host) {
     std::string host_str = (host != nullptr) ? host : "localhost";
-    return new rdmaio_rctrl_t{new RCtrl(static_cast<usize>(port), host_str)};
+    RCtrl* rctrl_obj = new RCtrl(static_cast<usize>(port), host_str);
+    rdmaio_rctrl_t* wrapper = new rdmaio_rctrl_t;
+    wrapper->ctrl = rctrl_obj;
+    return wrapper;
 }
 
 bool rctrl_start_daemon(rdmaio_rctrl_t* ctrl_ptr) {
     if (ctrl_ptr && ctrl_ptr->ctrl) {
-        return ctrl_ptr->ctrl->start_daemon();
+        RCtrl* ctrl = static_cast<RCtrl*>(ctrl_ptr->ctrl);
+        return ctrl->start_daemon();
     }
     return false;
 }
 
 void rctrl_stop_daemon(rdmaio_rctrl_t* ctrl_ptr) {
     if (ctrl_ptr && ctrl_ptr->ctrl) {
-        ctrl_ptr->ctrl->stop_daemon();
+        RCtrl* ctrl = static_cast<RCtrl*>(ctrl_ptr->ctrl);
+        ctrl->stop_daemon();
     }
 }
 
-	bool rctrl_register_mr(rdmaio_rctrl_t* ctrl_ptr, int64_t key, const rdmaio_regattr_t* attr, rdmaio_nic_t* nic_ptr) {
-	if (ctrl_ptr && attr && nic_ptr) {
-		auto ctrl = static_cast<RCtrl*>(ctrl_ptr);
-		auto nic = static_cast<RNic*>(nic_ptr);
-		rmem::RegAttr reg_attr = {
-			.buf = (void*)attr->buf,
-			.sz = attr->sz,
-			.key = attr->key,
-			.lkey = attr->lkey
-		};
-		auto mr = RegHandler::create(Arc<RMem>(new RMem(reg_attr.buf, reg_attr.sz)), Arc<RNic>(nic,(RNic*){ /* Do not delete, managed elsewhere */ }));
-		if (mr.is_ok()) {
-			ctrl->registered_mrs.reg(static_cast<u64>(key), mr.value());
-			return true;
-		} else {
-			fprintf(stderr, "Error registering MR: %s\n", mr.error().c_str());
-			return false;
-		}
-	} else {
-		fprintf(stderr, "Error: Invalid arguments for rctrl_register_mr.\n");
-		return false;
-	}
+bool rctrl_register_mr(rdmaio_rctrl_t* ctrl_ptr, int64_t key, const rdmaio_regattr_t* attr, rdmaio_nic_t* nic_ptr) {
+    if (ctrl_ptr && ctrl_ptr->ctrl && attr && nic_ptr && nic_ptr->nic) {
+       RCtrl* ctrl = static_cast<RCtrl*>(ctrl_ptr->ctrl);
+       Arc<RNic>* arc_nic_ptr = static_cast<Arc<RNic>*>(nic_ptr->nic);
+       Arc<RNic> arc_nic = *arc_nic_ptr;
+       rmem::RegAttr reg_attr = {
+          .buf = attr->addr,
+          .sz = attr->length,
+          .key = attr->rkey,
+          .lkey = attr->lkey
+       };
+
+       // Create Arc<RMem> that points to the memory described by reg_attr
+       Arc<RMem> mem(reinterpret_cast<RMem*>(attr->addr), [](RMem*){ /* No-op deleter */ });
+
+       auto mr = RegHandler::create(mem, arc_nic);
+       if (mr.has_value()) {
+          ctrl->registered_mrs.reg(static_cast<u64>(key), mr.value());
+          return true;
+       } else {
+          fprintf(stderr, "Error registering MR (check logs)\n");
+          return false;
+       }
+    } else {
+       fprintf(stderr, "Error: Invalid arguments for rctrl_register_mr.\n");
+       return false;
+    }
 }
 
-void* rctrl_query_qp(rdmaio_rctrl_t* ctrl_ptr, const char* qp_name) {
-	if (ctrl_ptr && ctrl_ptr->ctrl && qp_name) {
-		auto qp_opt = ctrl_ptr->ctrl->registered_qps.query(qp_name);
-		if (qp_opt.is_some()) {
-			return qp_opt.value().get(); // Return the raw pointer to the QP
-		}
-	}
-	return nullptr;
+rdmaio_rc_t* rctrl_query_qp(rdmaio_rctrl_t* ctrl_ptr, const char* qp_name) {
+    if (ctrl_ptr && ctrl_ptr->ctrl && qp_name) {
+       RCtrl* ctrl = static_cast<RCtrl*>(ctrl_ptr->ctrl);
+       auto qp_opt = ctrl->registered_qps.query(qp_name);
+       if (qp_opt.has_value()) {
+          // Wrap the raw pointer to the RC object
+          rdmaio_rc_t* rc_wrapper = new rdmaio_rc_t;
+          rc_wrapper->rc = qp_opt.value().get();
+          return rc_wrapper;
+       }
+    }
+    return nullptr;
 }
 
-bool rctrl_register_nic(rdmaio_rctrl_t* ctrl_ptr, const char* name, rdmaio_nic_t* nic_ptr) {
-    if (ctrl_ptr && name && nic_ptr) {
-        auto ctrl = static_cast<RCtrl*>(ctrl_ptr);
-        auto nic = static_cast<RNic*>(nic_ptr);
-        ctrl->opened_nics.reg(name, Arc<RNic>(nic,(RNic*){ /* Do not delete, managed elsewhere */ }));
-        return true;
+bool rctrl_register_nic(rdmaio_rctrl_t* ctrl_ptr, uint64_t nic_id, rdmaio_nic_t* nic_ptr) {
+    if (ctrl_ptr && ctrl_ptr->ctrl && nic_ptr && nic_ptr->nic) {
+       RCtrl* ctrl = static_cast<RCtrl*>(ctrl_ptr->ctrl);
+       Arc<RNic>* arc_nic_ptr = static_cast<Arc<RNic>*>(nic_ptr->nic);
+       ctrl->opened_nics.reg(nic_id, *arc_nic_ptr);
+       return true;
     }
     return false;
 }
 
 void rctrl_destroy(rdmaio_rctrl_t* ctrl_ptr) {
     if (ctrl_ptr) {
+        RCtrl* ctrl = static_cast<RCtrl*>(ctrl_ptr->ctrl);
+        delete ctrl;
         delete ctrl_ptr;
     }
 }
 
 } // extern "C"
-
-struct rdmaio_rctrl_t {
-    rdmaio::RCtrl* ctrl;
-};

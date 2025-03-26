@@ -1,9 +1,9 @@
-//
-// Created by mjasoria on 24/03/25.
-//
-
 #ifndef RDMAIO_RESULT_C_H
 #define RDMAIO_RESULT_C_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
 	/*! @brief Operation completed successfully. */
@@ -17,5 +17,9 @@ typedef enum {
 	/*! @brief The resource is not in a ready state for the operation. */
 	RDMAIO_NOT_READY = 4
 } rdmaio_iocode_t;
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif //RDMAIO_RESULT_C_H

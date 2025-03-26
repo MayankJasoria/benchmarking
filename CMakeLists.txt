@@ -15,6 +15,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG_BUILD)
 endif()
 
+# Include directories
+include_directories(rlibv2/core)
+include_directories(rlibv2/c_wrappers)
+
 # Find gflags library
 find_package(Gflags REQUIRED)
 include_directories(${GFLAGS_INCLUDE_DIRS})
@@ -23,6 +27,14 @@ include_directories(${GFLAGS_INCLUDE_DIRS})
 find_package(Threads REQUIRED)
 
 find_package(spdlog REQUIRED)
+
+# C wrapper implementation library
+file(GLOB_RECURSE c_wrapper_srcs "rlibv2/c_wrappers/impl/*.cpp")
+add_library(rdmaio_c_wrapper SHARED ${c_wrapper_srcs}) # Or STATIC
+
+# Link against necessary libraries (ibverbs, gflags)
+target_link_libraries(rdmaio_c_wrapper PRIVATE ibverbs)
+target_link_libraries(rdmaio_c_wrapper PRIVATE gflags)
 
 # Add executable for server.cpp
 add_executable(server server.cpp)
@@ -46,5 +58,11 @@ target_link_libraries(mmap_disk gflags spdlog::spdlog)
 
 add_executable(sync_disk sync_disk_io.cpp)
 target_link_libraries(sync_disk gflags spdlog::spdlog)
+
+# Add executable for c_client (client.c)
 add_executable(c_client client.c)
+target_link_libraries(c_client PRIVATE rdmaio_c_wrapper ibverbs gflags Threads::Threads)
+
+# Add executable for c_server (server.c)
 add_executable(c_server server.c)
+target_link_libraries(c_server PRIVATE rdmaio_c_wrapper ibverbs gflags Threads::Threads)
