@@ -443,9 +443,30 @@ void send_reset(rdmaio_rc_t* qp, rdmaio_reg_handler_t* local_mr) {
 	}
 }
 
-// Placeholder for writeResultsToFile function
 void writeResultsToFile(long** times, int num_msgs, int num_bytes) {
-	printf("Writing results to file (not implemented in placeholder).\n");
+	// Construct the output file name
+	char filename[256]; // Assuming a reasonable maximum filename length
+	snprintf(filename, sizeof(filename), "/hdd2/rdma-libs/results/rdma_send_recv_c_%d.txt", num_bytes);
+
+	// Open the file for writing
+	FILE* outputFile = fopen(filename, "w");
+
+	// Check if the file was opened successfully
+	if (outputFile != NULL) {
+		// Write the header row
+		fprintf(outputFile, "before wait\tafter wait\trtt\n");
+
+		// Write the data from the 'times' array
+		for (int i = 0; i < num_msgs; ++i) {
+			fprintf(outputFile, "%ld\t%ld\t%ld\n", times[i][0], times[i][1], times[i][2]);
+		}
+
+		// Close the file
+		fclose(outputFile);
+		printf("Data written to: %s\n", filename);
+	} else {
+		fprintf(stderr, "Unable to open file: %s\n", filename);
+	}
 }
 
 void send_termination(rdmaio_rc_t* qp, rdmaio_reg_handler_t* local_mr) {
