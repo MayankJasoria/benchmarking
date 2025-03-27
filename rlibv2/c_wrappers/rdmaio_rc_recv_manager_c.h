@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <infiniband/verbs.h>
 #include "rdmaio_mem_c.h"
 #include "rdmaio_rctrl_c.h"
 
@@ -63,7 +64,7 @@ void simple_allocator_destroy(simple_allocator_t* allocator_ptr);
  * @param allocator_ptr A pointer to the simple allocator to use for this CQ.
  * @return True on successful registration, false otherwise.
  */
-bool recv_manager_reg_recv_cq(rdmaio_recv_manager_t* manager_ptr, const char* name, void* cq, simple_allocator_t* allocator_ptr);
+bool recv_manager_reg_recv_cq(rdmaio_recv_manager_t* manager_ptr, const char* name, struct ibv_cq* cq, simple_allocator_t* allocator_ptr);
 
 /*!
  * @brief Queries the receive entries associated with a registered name.

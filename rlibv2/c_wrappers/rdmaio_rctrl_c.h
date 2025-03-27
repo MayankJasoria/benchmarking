@@ -3,9 +3,9 @@
 
 #include <stdbool.h>
 #include <stdint.h> // Include for int64_t
-#include "rdmaio_regattr_c.h"
 #include "rdmaio_nic_c.h"
-#include "rdmaio_rc_c.h"
+#include "rdmaio_reg_handler_c.h"
+#include "rdmaio_qp_c.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,14 +40,13 @@ bool rctrl_start_daemon(rdmaio_rctrl_t* ctrl);
 void rctrl_stop_daemon(rdmaio_rctrl_t* ctrl);
 
 /*!
- * @brief Registers a memory region with the RCtrl daemon.
+ * @brief Registers a memory region handler with the RCtrl daemon.
  * @param ctrl A pointer to the RCtrl object.
- * @param key The key to register the memory region under.
- * @param attr The attributes of the memory region.
- * @param nic A pointer to the NIC associated with this memory region.
+ * @param key The key to register the memory region handler under.
+ * @param handler A pointer to the memory region handler object.
  * @return True if the registration was successful, false otherwise.
  */
-bool rdmaio_rctrl_register_mr(rdmaio_rctrl_t* ctrl, int64_t key, const rdmaio_regattr_t* attr, rdmaio_nic_t* nic);
+bool rdmaio_rctrl_register_mr(rdmaio_rctrl_t* ctrl, int64_t key, rdmaio_reg_handler_t* handler);
 
 /*!
  * @brief Queries a registered queue pair from the RCtrl daemon.
@@ -55,7 +54,7 @@ bool rdmaio_rctrl_register_mr(rdmaio_rctrl_t* ctrl, int64_t key, const rdmaio_re
  * @param name The name of the queue pair to query.
  * @return A pointer to the registered RC queue pair object, or NULL if not found.
  */
-rdmaio_rc_t* rctrl_query_qp(rdmaio_rctrl_t* ctrl, const char* name);
+rdmaio_qp_t* rctrl_query_qp(rdmaio_rctrl_t* ctrl, const char* name);
 
 /*!
  * @brief Registers an opened NIC with the RCtrl daemon.

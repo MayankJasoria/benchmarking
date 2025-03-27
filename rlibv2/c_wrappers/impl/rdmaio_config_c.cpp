@@ -3,7 +3,6 @@
 #include <infiniband/verbs.h> // Include for IBV_ACCESS flags
 
 // Placeholder for gflags values (assuming they are defined externally)
-extern int FLAGS_max_msg_size; // While the C++ default is 128, the gflag might override
 
 // Default values from the C++ header
 const int kDefaultPSN = 3185;

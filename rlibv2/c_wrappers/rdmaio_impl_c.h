@@ -3,6 +3,7 @@
 #define RDMAIO_IMPL_C_H
 
 #include <stddef.h>
+#include <infiniband/verbs.h> // Include for ibv_cq
 #include "rdmaio_nic_c.h"
 
 #ifdef __cplusplus
@@ -17,13 +18,13 @@ extern "C" {
  * @param err_msg_size Size of the error message buffer.
  * @return A pointer to the created ibv_cq object, or NULL on failure.
  */
-void* rdmaio_create_cq(rdmaio_nic_t* nic, int cq_sz, char* err_msg, size_t err_msg_size);
+struct ibv_cq* rdmaio_create_cq(rdmaio_nic_t* nic, int cq_sz, char* err_msg, size_t err_msg_size);
 
 /*!
  * @brief Destroys a Completion Queue.
  * @param cq The ibv_cq object to destroy.
  */
-void rdmaio_destroy_cq(void* cq);
+void rdmaio_destroy_cq(struct ibv_cq* cq);
 
 #ifdef __cplusplus
 } // extern "C"

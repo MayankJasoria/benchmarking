@@ -1,43 +1,51 @@
-// rlibv2/c_wrappers/rdmaio_recv_iter_wrapper.cpp
 #include "../rdmaio_recv_iter_c.h"
 #include "../../core/qps/recv_iter.hh"
 #include "../../core/qps/rc.hh"
 #include "../../core/qps/recv_helper.hh"
-#include "../../core/result.hh"
 #include <memory> // Include for std::unique_ptr
+#include "../../core/qps/mod.hh" // Include for Dummy
 
 using namespace rdmaio;
 using namespace rdmaio::qp;
 
-constexpr size_t entry_num = 128;
+constexpr size_t entry_num = 256;
 
 // Internal structure to hold the C++ RecvIter instance
 struct rdmaio_recv_iter_internal_t {
-    std::unique_ptr<RecvIter<RC, entry_num>> iter;
+    std::unique_ptr<RecvIter<Dummy, entry_num>> iter; // Changed RC to Dummy
 };
 
 extern "C" {
 
-	rdmaio_recv_iter_t* rdmaio_recv_iter_create(void* qp_ptr, void* recv_entries_ptr) {
-		if (!qp_ptr || !recv_entries_ptr) return nullptr;
+rdmaio_recv_iter_t* rdmaio_recv_iter_create(rdmaio_qp_t* qp_ptr, recv_entries_handle_t* recv_entries_handle) {
+    if (!qp_ptr || !recv_entries_handle || !qp_ptr->internal || !recv_entries_handle->internal_ptr) return nullptr;
 
-		RC* qp = static_cast<RC*>(qp_ptr); // Assuming qp is wrapped as RC
-		RecvEntries<entry_num>* entries = static_cast<RecvEntries<entry_num>*>(recv_entries_ptr);
+    // rdmaio_qp_t::internal holds an Arc<Dummy>*
+    auto dummy_arc_ptr = static_cast<Arc<Dummy>*>(qp_ptr->internal);
+    if (!dummy_arc_ptr) return nullptr;
+    Arc<Dummy>& qp_arc = *dummy_arc_ptr;
 
-		rdmaio_recv_iter_t* iter_c = new rdmaio_recv_iter_t;
-		iter_c->internal = new rdmaio_recv_iter_internal_t;
-		auto internal_ptr = static_cast<rdmaio_recv_iter_internal_t*>(iter_c->internal);
-		Arc<RC> qp_arc(qp, [](RC*){ /* Do not delete, managed elsewhere */ });
-		Arc<RecvEntries<entry_num>> entries_arc(entries, [](RecvEntries<entry_num>*){/* Do not delete */ });
-		internal_ptr->iter.reset(new RecvIter<RC, entry_num>(qp_arc, entries_arc));
+    // recv_entries_handle->internal_ptr holds an Arc<RecvEntries<entry_num>>*
+    auto entries_arc_ptr = static_cast<Arc<RecvEntries<entry_num>>*>(recv_entries_handle->internal_ptr);
+    if (!entries_arc_ptr) return nullptr;
+    Arc<RecvEntries<entry_num>>& entries_arc = *entries_arc_ptr;
 
-		return iter_c;
-	}
+    rdmaio_recv_iter_t* iter_c = new rdmaio_recv_iter_t;
+    iter_c->internal = new rdmaio_recv_iter_internal_t;
+    auto internal_ptr = static_cast<rdmaio_recv_iter_internal_t*>(iter_c->internal);
+    internal_ptr->iter.reset(new RecvIter<Dummy, entry_num>(qp_arc, entries_arc));
+
+    return iter_c;
+}
 
 bool rdmaio_recv_iter_has_msgs(const rdmaio_recv_iter_t* iter) {
-    if (!iter || !iter->internal) return false;
+    if (!iter || !iter->internal) {
+        return false;
+    }
     auto internal_ptr = static_cast<rdmaio_recv_iter_internal_t*>(iter->internal);
-    if (!internal_ptr || !internal_ptr->iter) return false;
+    if (!internal_ptr || !internal_ptr->iter) {
+        return false;
+    }
     return internal_ptr->iter->has_msgs();
 }
 
@@ -55,10 +63,14 @@ bool rdmaio_recv_iter_cur_msg(const rdmaio_recv_iter_t* iter, uint32_t* out_imm_
     auto internal_ptr = static_cast<rdmaio_recv_iter_internal_t*>(iter->internal);
     if (!internal_ptr || !internal_ptr->iter) return false;
     auto msg_opt = internal_ptr->iter->cur_msg();
-    if (msg_opt.is_some()) {
+    if (msg_opt.has_value()) {
         auto msg = msg_opt.value();
-        if (out_imm_data) *out_imm_data = msg.first;
-        if (out_buf_addr) *out_buf_addr = reinterpret_cast<uintptr_t>(msg.second);
+        if (out_imm_data) {
+            *out_imm_data = msg.first;
+        }
+        if (out_buf_addr) {
+            *out_buf_addr = reinterpret_cast<uintptr_t>(msg.second);
+        }
         return true;
     }
     return false;

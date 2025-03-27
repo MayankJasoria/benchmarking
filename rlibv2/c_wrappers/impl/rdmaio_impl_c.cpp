@@ -8,7 +8,7 @@ using namespace rdmaio::qp;
 
 extern "C" {
 
-void* rdmaio_create_cq(rdmaio_nic_t* nic_ptr, int cq_sz, char* err_msg, size_t err_msg_size) {
+struct ibv_cq* rdmaio_create_cq(rdmaio_nic_t* nic_ptr, int cq_sz, char* err_msg, size_t err_msg_size) {
 	if (!nic_ptr || !nic_ptr->nic) {
 		return nullptr;
 	}
@@ -24,9 +24,9 @@ void* rdmaio_create_cq(rdmaio_nic_t* nic_ptr, int cq_sz, char* err_msg, size_t e
 	return nullptr;
 }
 
-void rdmaio_destroy_cq(void* cq) {
+void rdmaio_destroy_cq(struct ibv_cq* cq) {
 	if (cq) {
-		ibv_destroy_cq(static_cast<ibv_cq*>(cq));
+		ibv_destroy_cq(cq);
 	}
 }
 
