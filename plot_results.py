@@ -181,7 +181,7 @@ for i, metric_type in enumerate(metrics):
 axes[-1].set_xlabel('Message Size (Bytes)')
 handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, .1, 1, 1))
+plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_all_conditions.png")
 
 # Create the figure and subplots for the truncated data (all conditions)
@@ -230,7 +230,7 @@ for i, metric_type in enumerate(metrics):
 axes_truncated_all[-1].set_xlabel('Message Size (Bytes)')
 handles_truncated_all, labels_truncated_all = axes_truncated_all[0].get_legend_handles_labels()
 fig_truncated_all.legend(handles_truncated_all, labels_truncated_all, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, .1, 1, 1)) # Adjust layout to make space for the legend
+plt.tight_layout(rect=(0, 0.1, 1, 1)) # Adjust layout to make space for the legend
 plt.savefig("plots/plot_truncated_all_conditions.png")
 
 # Create the figure and subplots for the data beyond the truncation (all conditions)
@@ -280,10 +280,10 @@ for i, metric_type in enumerate(metrics):
 axes_beyond_all[-1].set_xlabel('Message Size (Bytes)')
 handles_beyond_all, labels_beyond_all = axes_beyond_all[0].get_legend_handles_labels()
 fig_beyond_all.legend(handles_beyond_all, labels_beyond_all, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, .1, 1, 1))
+plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_beyond_truncated_all_conditions.png")
 
-# Create the figure and subplots for the original data (without the two conditions)
+# Create the figure and subplots for the original data (without the two conditions) - ALL DATA
 fig_removed, axes_removed = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
 fig_removed.suptitle('Time spent by threads for I/O (Conditions Removed)')
 for i, metric_type in enumerate(metrics):
@@ -330,8 +330,107 @@ for i, metric_type in enumerate(metrics):
 axes_removed[-1].set_xlabel('Message Size (Bytes)')
 handles_removed, labels_removed = axes_removed[0].get_legend_handles_labels()
 fig_removed.legend(handles_removed, labels_removed, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, .1, 1, 1))
+plt.tight_layout(rect=(0, 0.1, 1, 1))
+plt.savefig("plots/plot_removed_conditions.png")
+
+# Create the figure and subplots for the original data (without the two conditions) - TRUNCATED
+fig_truncated_removed, axes_truncated_removed = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+fig_truncated_removed.suptitle('Time spent by threads for I/O (Conditions Removed, <= 16KB)')
+for i, metric_type in enumerate(metrics):
+    ax = axes_truncated_removed[i]
+    ax.set_title(f'{metric_type.upper()} Time')
+    for experiment_type in unique_experiment_types_truncated_removed:
+        subset = truncated_df_removed[truncated_df_removed['Experiment Type'] == experiment_type]
+        subset_sorted = subset.sort_values(by='Message Size')
+        if 'async_io' in experiment_type:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        elif 'mmap_io' in experiment_type:
+            for col in ['memcpy_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        elif 'rdma_send_recv' in experiment_type:
+            for col in ['before wait', 'after wait', 'rtt']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        elif 'sync_io' in experiment_type:
+            for col in ['write_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+    ax.set_xscale('log', base=2)
+    ax.set_ylabel('Time (µs)')
+    ax.grid(True)
+    xticks_truncated_removed = [2**i for i in range(15)]
+    ax.set_xticks(xticks_truncated_removed)
+    ax.set_xlim(0.9, 20000)
+axes_truncated_removed[-1].set_xlabel('Message Size (Bytes)')
+handles_truncated_removed, labels_truncated_removed = axes_truncated_removed[0].get_legend_handles_labels()
+fig_truncated_removed.legend(handles_truncated_removed, labels_truncated_removed, loc='lower center', ncol=3)
+plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_truncated_removed_conditions.png")
+
+# Create the figure and subplots for the original data (without the two conditions) - BEYOND TRUNCATED
+fig_beyond_truncated_removed, axes_beyond_truncated_removed = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+fig_beyond_truncated_removed.suptitle('Time spent by threads for I/O (Conditions Removed, > 16KB)')
+for i, metric_type in enumerate(metrics):
+    ax = axes_beyond_truncated_removed[i]
+    ax.set_title(f'{metric_type.upper()} Time')
+    for experiment_type in unique_experiment_types_beyond_removed:
+        subset = beyond_truncated_df_removed[beyond_truncated_df_removed['Experiment Type'] == experiment_type]
+        subset_sorted = subset.sort_values(by='Message Size')
+        if 'async_io' in experiment_type:
+            for col in ['initiation_duration_nsec', 'write_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        elif 'mmap_io' in experiment_type:
+            for col in ['memcpy_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        elif 'rdma_send_recv' in experiment_type:
+            for col in ['before wait', 'after wait', 'rtt']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        elif 'sync_io' in experiment_type:
+            for col in ['write_duration_nsec']:
+                metric_col = f'{col}_{metric_type}'
+                if metric_col in subset_sorted.columns:
+                    color = condition_colors_removed.get((experiment_type, col))
+                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+    ax.set_xscale('log', base=2)
+    ax.set_ylabel('Time (µs)')
+    ax.grid(True)
+    max_size_beyond_removed = beyond_truncated_df_removed['Message Size'].max()
+    upper_power_beyond_removed = int(np.ceil(np.log2(max_size_beyond_removed))) if max_size_beyond_removed > 0 else 15
+    xticks_beyond_removed = [2**i for i in range(15, upper_power_beyond_removed + 1)]
+    ax.set_xticks(xticks_beyond_removed)
+axes_beyond_truncated_removed[-1].set_xlabel('Message Size (Bytes)')
+handles_beyond_truncated_removed, labels_beyond_truncated_removed = axes_beyond_truncated_removed[0].get_legend_handles_labels()
+fig_beyond_truncated_removed.legend(handles_beyond_truncated_removed, labels_beyond_truncated_removed, loc='lower center', ncol=3)
+plt.tight_layout(rect=(0, 0.1, 1, 1))
+plt.savefig("plots/plot_beyond_truncated_removed_conditions.png")
 
 # --- New Plot Set 1: Time for complete write ---
 plot_set1_base_title = "Time for complete write"
@@ -386,7 +485,7 @@ for data_range, df, filename_suffix in [
     axes_set1[-1].set_xlabel('Message Size (Bytes)')
     handles_set1, labels_set1 = axes_set1[0].get_legend_handles_labels()
     fig_set1.legend(handles_set1, labels_set1, loc='lower center', ncol=2)
-    plt.tight_layout(rect=(0, 0.05, 1, 1)) # Adjusted bottom rect
+    plt.tight_layout(rect=(0, 0.1, 1, 1))
     plt.savefig(f"plots/plot_set1_{filename_suffix}.png")
     plt.close(fig_set1)
 
@@ -443,7 +542,7 @@ for data_range, df, filename_suffix in [
     axes_set2[-1].set_xlabel('Message Size (Bytes)')
     handles_set2, labels_set2 = axes_set2[0].get_legend_handles_labels()
     fig_set2.legend(handles_set2, labels_set2, loc='lower center', ncol=2)
-    plt.tight_layout(rect=(0, 0.05, 1, 1)) # Adjusted bottom rect
+    plt.tight_layout(rect=(0, 0.1, 1, 1))
     plt.savefig(f"plots/plot_set2_{filename_suffix}.png")
     plt.close(fig_set2)
 
@@ -490,7 +589,7 @@ for data_range, df, filename_suffix in [
     axes_set3[-1].set_xlabel('Message Size (Bytes)')
     handles_set3, labels_set3 = axes_set3[0].get_legend_handles_labels()
     fig_set3.legend(handles_set3, labels_set3, loc='lower center', ncol=2)
-    plt.tight_layout(rect=(0, 0.05, 1, 1)) # Adjusted bottom rect
+    plt.tight_layout(rect=(0, 0.1, 1, 1))
     plt.savefig(f"plots/plot_set3_{filename_suffix}.png")
     plt.close(fig_set3)
 
@@ -504,7 +603,7 @@ def adjust_legend_labels(filename):
     handles, labels = plt.gca().get_legend_handles_labels()
     if handles:
         plt.legend(handles, [label.replace('_duration_nsec', '') for label in labels], loc='lower center', ncol=3)
-        plt.tight_layout(rect=(0, .1, 1, 1)) # Ensure rect is correct
+        plt.tight_layout(rect=(0, 0.1, 1, 1)) # Ensure rect is correct
         plt.savefig(filename)
     plt.close()
 
@@ -513,3 +612,4 @@ adjust_legend_labels("plots/plot_truncated_all_conditions.png")
 adjust_legend_labels("plots/plot_beyond_truncated_all_conditions.png")
 adjust_legend_labels("plots/plot_removed_conditions.png")
 adjust_legend_labels("plots/plot_truncated_removed_conditions.png")
+adjust_legend_labels("plots/plot_beyond_truncated_removed_conditions.png")
