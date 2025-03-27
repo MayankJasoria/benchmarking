@@ -15,7 +15,9 @@ extern "C" {
 /*!
  * @brief Opaque type representing a memory registration handler.
  */
-typedef struct rdmaio_reg_handler_t rdmaio_reg_handler_t;
+typedef struct rdmaio_reg_handler_t {
+  void* handler;
+} rdmaio_reg_handler_t;
 
 /*!
  * @brief Creates a memory registration handler.

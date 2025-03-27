@@ -10,7 +10,7 @@ using namespace rdmaio::qp;
 using namespace rdmaio::rmem;
 
 // Define a constexpr for the entry number
-constexpr usize entry_num = 128;
+constexpr usize entry_num = 256;
 
 // Define a default value for the template parameter R
 using DefaultRecvManager = RecvManager<entry_num>;
@@ -77,12 +77,12 @@ void simple_allocator_destroy(simple_allocator_t* allocator_ptr) {
     }
 }
 
-bool recv_manager_reg_recv_cq(rdmaio_recv_manager_t* manager_ptr, const char* name, void* cq, simple_allocator_t* allocator_ptr) {
+bool recv_manager_reg_recv_cq(rdmaio_recv_manager_t* manager_ptr, const char* name, struct ibv_cq* cq, simple_allocator_t* allocator_ptr) {
     if (manager_ptr && manager_ptr->manager && name && cq && allocator_ptr && allocator_ptr->allocator) {
         DefaultRecvManager* manager = static_cast<DefaultRecvManager*>(manager_ptr->manager);
-        AbsRecvAllocator* allocator = static_cast<AbsRecvAllocator*>(allocator_ptr->allocator);
+        SimpleAllocator* allocator = static_cast<SimpleAllocator*>(allocator_ptr->allocator);
         // Lambda fix: Using a lambda as a no-op deleter for Arc
-        auto recv_common = std::make_shared<RecvCommon>(static_cast<ibv_cq*>(cq), Arc<AbsRecvAllocator>(allocator, [](AbsRecvAllocator*){ /* Do not delete, managed elsewhere */ }));
+        auto recv_common = std::make_shared<RecvCommon>(cq, Arc<SimpleAllocator>(allocator, [](SimpleAllocator*){ /* Do not delete, managed elsewhere */ }));
         return manager->reg_recv_cqs.reg(name, recv_common).has_value();
     }
     return false;

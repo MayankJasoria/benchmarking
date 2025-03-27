@@ -58,8 +58,8 @@ void rdmaio_rc_destroy(rdmaio_rc_t* rc_ptr) {
 
 void rdmaio_rc_my_attr(const rdmaio_rc_t* rc, rdmaio_qpattr_t* out_attr) {
     if (rc && out_attr && rc->rc) {
-        Arc<RC>* arc_rc = static_cast<Arc<RC>*>(rc->rc);
-        QPAttr qp_attr = arc_rc->get()->my_attr();
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc->rc);
+        QPAttr qp_attr = (*arc_rc_ptr)->my_attr();
         out_attr->subnet_prefix = qp_attr.addr.subnet_prefix;
         out_attr->interface_id = qp_attr.addr.interface_id;
         out_attr->local_id = qp_attr.addr.local_id;
@@ -73,7 +73,7 @@ void rdmaio_rc_my_attr(const rdmaio_rc_t* rc, rdmaio_qpattr_t* out_attr) {
 
 int rdmaio_rc_connect(rdmaio_rc_t* rc, const rdmaio_qpattr_t* attr, char* out_error_msg, size_t error_msg_size) {
     if (rc && attr && rc->rc) {
-        Arc<RC>* arc_rc = static_cast<Arc<RC>*>(rc->rc);
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc->rc);
         QPAttr qp_attr;
         qp_attr.addr.subnet_prefix = attr->subnet_prefix;
         qp_attr.addr.interface_id = attr->interface_id;
@@ -83,7 +83,7 @@ int rdmaio_rc_connect(rdmaio_rc_t* rc, const rdmaio_qpattr_t* attr, char* out_er
         qp_attr.port_id = attr->port_id;
         qp_attr.qpn = attr->qpn;
         qp_attr.qkey = attr->qkey;
-        auto result = arc_rc->get()->connect(qp_attr);
+        auto result = (*arc_rc_ptr)->connect(qp_attr);
         if (result == IOCode::Ok) {
             return 0; // Success
         } else {
@@ -98,7 +98,7 @@ int rdmaio_rc_connect(rdmaio_rc_t* rc, const rdmaio_qpattr_t* attr, char* out_er
 
 int rdmaio_rc_send_normal(rdmaio_rc_t* rc, const rdmaio_reqdesc_t* req_desc, const rdmaio_reqpayload_t* req_payload, char* out_error_msg, size_t error_msg_size) {
     if (rc && rc->rc) {
-        Arc<RC>* arc_rc = static_cast<Arc<RC>*>(rc->rc);
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc->rc);
         RC::ReqDesc cpp_req_desc;
         if (req_desc) {
             cpp_req_desc.wr_id = req_desc->wr_id;
@@ -112,7 +112,7 @@ int rdmaio_rc_send_normal(rdmaio_rc_t* rc, const rdmaio_reqdesc_t* req_desc, con
             cpp_req_payload.remote_addr = req_payload->remote_addr;
             cpp_req_payload.imm_data = req_payload->imm_data;
         }
-        auto result = arc_rc->get()->send_normal(cpp_req_desc, cpp_req_payload);
+        auto result = (*arc_rc_ptr)->send_normal(cpp_req_desc, cpp_req_payload);
         if (result == IOCode::Ok) {
             return 0; // Success
         } else {
@@ -127,7 +127,7 @@ int rdmaio_rc_send_normal(rdmaio_rc_t* rc, const rdmaio_reqdesc_t* req_desc, con
 
 int rdmaio_rc_send_normal_mr(rdmaio_rc_t* rc, const rdmaio_reqdesc_t* req_desc, const rdmaio_reqpayload_t* req_payload, const rdmaio_regattr_t* reg_local_mr, const rdmaio_regattr_t* reg_remote_mr, char* out_error_msg, size_t error_msg_size) {
     if (rc && rc->rc) {
-        Arc<RC>* arc_rc = static_cast<Arc<RC>*>(rc->rc);
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc->rc);
         RC::ReqDesc cpp_req_desc;
         if (req_desc) {
             cpp_req_desc.wr_id = req_desc->wr_id;
@@ -155,7 +155,7 @@ int rdmaio_rc_send_normal_mr(rdmaio_rc_t* rc, const rdmaio_reqdesc_t* req_desc, 
             cpp_reg_remote_mr.lkey = reg_remote_mr->lkey;
             cpp_reg_remote_mr.key = reg_remote_mr->rkey;
         }
-        auto result = arc_rc->get()->send_normal(cpp_req_desc, cpp_req_payload, cpp_reg_local_mr, cpp_reg_remote_mr);
+        auto result = (*arc_rc_ptr)->send_normal(cpp_req_desc, cpp_req_payload, cpp_reg_local_mr, cpp_reg_remote_mr);
         if (result == IOCode::Ok) {
             return 0; // Success
         } else {
@@ -170,8 +170,8 @@ int rdmaio_rc_send_normal_mr(rdmaio_rc_t* rc, const rdmaio_reqdesc_t* req_desc, 
 
 int rdmaio_rc_wait_rc_comp(rdmaio_rc_t* rc, uint64_t* out_user_wr, ibv_wc* out_wc) {
     if (rc && rc->rc) {
-        Arc<RC>* arc_rc = static_cast<Arc<RC>*>(rc->rc);
-        auto result = arc_rc->get()->wait_rc_comp();
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc->rc);
+        auto result = (*arc_rc_ptr)->wait_rc_comp();
         if (result == IOCode::Ok) {
             if (out_wc) {
                 std::memcpy(out_wc, &result.desc.second, sizeof(ibv_wc));
@@ -189,8 +189,8 @@ int rdmaio_rc_wait_rc_comp(rdmaio_rc_t* rc, uint64_t* out_user_wr, ibv_wc* out_w
 
 int rdmaio_rc_poll_rc_comp(rdmaio_rc_t* rc, uint64_t* out_user_wr, ibv_wc* out_wc) {
     if (rc && rc->rc) {
-        Arc<RC>* arc_rc = static_cast<Arc<RC>*>(rc->rc);
-        auto result = arc_rc->get()->poll_rc_comp();
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc->rc);
+        auto result = (*arc_rc_ptr)->poll_rc_comp();
         if (result.has_value()) {
             if (out_user_wr) *out_user_wr = result.value().first;
             if (out_wc) std::memcpy(out_wc, &result.value().second, sizeof(ibv_wc));
@@ -200,6 +200,22 @@ int rdmaio_rc_poll_rc_comp(rdmaio_rc_t* rc, uint64_t* out_user_wr, ibv_wc* out_w
         }
     }
     return -1; // Invalid input
+}
+
+void rdmaio_rc_bind_remote_mr(rdmaio_rc_t* rc_ptr, const rdmaio_regattr_t* mr) {
+    if (rc_ptr && rc_ptr->rc && mr) {
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc_ptr->rc);
+        rmem::RegAttr remote_attr = {.buf = mr->addr, .sz = mr->length, .key = mr->rkey, .lkey = mr->lkey};
+        (*arc_rc_ptr)->bind_remote_mr(remote_attr);
+    }
+}
+
+void rdmaio_rc_bind_local_mr(rdmaio_rc_t* rc_ptr, const rdmaio_regattr_t* mr) {
+    if (rc_ptr && rc_ptr->rc && mr) {
+        Arc<RC>* arc_rc_ptr = static_cast<Arc<RC>*>(rc_ptr->rc);
+        rmem::RegAttr local_attr = {.buf = mr->addr, .sz = mr->length, .key = mr->rkey, .lkey = mr->lkey};
+        (*arc_rc_ptr)->bind_local_mr(local_attr);
+    }
 }
 
 } // extern "C"

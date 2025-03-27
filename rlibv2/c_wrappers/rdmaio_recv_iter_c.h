@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <infiniband/verbs.h>
+#include "rdmaio_qp_c.h"
+#include "rdmaio_rc_recv_manager_c.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,12 +19,12 @@ extern "C" {
   } rdmaio_recv_iter_t;
 
   /*!
-   * @brief Creates a RecvIter object.
-   * @param qp A pointer to the wrapped QP object (e.g., rdmaio_rc_t* or rdmaio_ud_t*).
+   * @brief Creates a RecvIter object for a given QP.
+   * @param qp A pointer to the wrapped QP object (rdmaio_qp_t*).
    * @param recv_entries A pointer to the wrapped RecvEntries object.
    * @return A pointer to the created RecvIter object, or NULL on failure.
    */
-  rdmaio_recv_iter_t* rdmaio_recv_iter_create(void* qp, void* recv_entries);
+  rdmaio_recv_iter_t* rdmaio_recv_iter_create(rdmaio_qp_t* qp, recv_entries_handle_t* recv_entries_handle);
 
   /*!
    * @brief Checks if there are more messages available in the iterator.
