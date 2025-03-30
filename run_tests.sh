@@ -58,6 +58,16 @@ for msg_size in "${msg_sizes[@]}"; do
     ./disk_async --msg_size=$msg_size --msg_count=$msg_count > "logs/disk_async_$msg_size.txt" 2>&1
     echo "Asynchronous disk I/O test finished."
 
+    # Run asynchronous disk I/O test
+    echo "Running asynchronous disk I/O test (aio_flush) for $msg_size"
+    ./disk_async_flush --msg_size=$msg_size --msg_count=$msg_count > "logs/disk_async_flush_$msg_size.txt" 2>&1
+    echo "Asynchronous Disk I/O test (aio_flush) finished."
+
+    # Run asynchronous disk I/O test (without explicit flushing)
+    echo "Running asynchronous disk I/O test (no explicit flush) for $msg_size"
+    ./disk_async_no_flush --msg_size=$msg_size --msg_count=$msg_count > "logs/disk_async_no_flush_$msg_size.txt" 2>&1
+    echo "Asynchronous Disk I/O test (no explicit flush) finished."
+
     # Run mmap disk I/O test
     echo "Running mmap disk I/O test for $msg_size"
     ./mmap_disk --msg_size=$msg_size --msg_count=$msg_count > "logs/mmap_disk_$msg_size.txt" 2>&1
