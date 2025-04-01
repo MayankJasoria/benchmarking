@@ -50,16 +50,11 @@ target_link_libraries(client2 gflags ibverbs Threads::Threads)
 add_executable(server2 server2.cpp)
 target_link_libraries(server2 gflags ibverbs Threads::Threads)
 
-add_executable(disk_async async_disk_io.cpp)
-target_link_libraries(disk_async gflags rt spdlog::spdlog)
+add_executable(disk_async_o_sync_flush async_disk_o_sync_flush.cpp)
+target_link_libraries(disk_async_o_sync_flush gflags rt spdlog::spdlog)
 
-add_executable(disk_async_flush async_disk_flush_io.cpp)
-target_link_libraries(disk_async_flush gflags rt spdlog::spdlog)
-target_compile_definitions(disk_async_flush PRIVATE "-D_XOPEN_SOURCE=600")
-
-add_executable(disk_async_no_flush async_disk_no_flush_io.cpp)
-target_link_libraries(disk_async_no_flush gflags rt spdlog::spdlog)
-target_compile_definitions(disk_async_no_flush PRIVATE "-D_XOPEN_SOURCE=600")
+add_executable(disk_async_o_dsync_flush async_disk_o_dsync_flush.cpp)
+target_link_libraries(disk_async_o_dsync_flush gflags rt spdlog::spdlog)
 
 add_executable(mmap_disk mmap_disk_io.cpp)
 target_link_libraries(mmap_disk gflags spdlog::spdlog)

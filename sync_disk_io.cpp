@@ -55,7 +55,6 @@ pair<long, long> perform_write(int fd, string &data_to_write) {
     spdlog::debug("Time taken for sync write to complete (in kernel): {} nanoseconds", write_complete_duration);
 
     // Force write to disk
-    auto fsync_start_time = chrono::high_resolution_clock::now();
     if (fsync(fd) < 0) {
         spdlog::error("Error flushing file: {}", strerror(errno));
         close(fd);

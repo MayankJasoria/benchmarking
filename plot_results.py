@@ -13,7 +13,6 @@ def calculate_statistics(data, columns):
     for col in columns:
         stats[f'{col}_avg'] = data[col].mean()
         stats[f'{col}_p99'] = data[col].quantile(0.99)
-        stats[f'{col}_max'] = data[col].max()
     return stats
 
 # Directory containing the files
@@ -26,9 +25,27 @@ plot_data = []
 for filename in os.listdir(directory):
     if filename.endswith('.txt'):
         # Extract experiment type and message size from the filename
-        parts = filename.split('_')
-        experiment_type = '_'.join(parts[:-1])
-        message_size = int(parts[-1].split('.')[0])
+        if filename.startswith('async_io_sync_elapsed_time_'):
+            parts = filename.split('_')
+            experiment_type = 'async io - O_SYNC'
+            try:
+                message_size = int(parts[-1].split('.')[0])
+            except ValueError:
+                continue
+        elif filename.startswith('async_io_dsync_elapsed_time_'):
+            parts = filename.split('_')
+            experiment_type = 'async io - O_DSYNC'
+            try:
+                message_size = int(parts[-1].split('.')[0])
+            except ValueError:
+                continue
+        else:
+            parts = filename.split('_')
+            experiment_type = '_'.join(parts[:-1])
+            try:
+                message_size = int(parts[-1].split('.')[0])
+            except ValueError:
+                continue
 
         # Read data from the file
         file_path = os.path.join(directory, filename)
@@ -36,10 +53,10 @@ for filename in os.listdir(directory):
 
         # Determine columns to be used for statistics calculation based on experiment type
         columns = []
-        if 'async_io' in experiment_type:
-            columns = ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            columns = ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec']
         elif 'mmap_io' in experiment_type:
-            columns = ['memcpy_duration_nsec', 'msync_duration_nsec']
+            columns = ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec']
         elif 'rdma_send_recv' in experiment_type:
             columns = ['before wait', 'after wait', 'rtt']
         elif 'sync_io' in experiment_type:
@@ -78,99 +95,131 @@ unique_experiment_types_truncated_removed = truncated_df_removed['Experiment Typ
 unique_experiment_types_beyond_removed = beyond_truncated_df_removed['Experiment Type'].unique()
 
 # Define metrics to plot
-metrics = ['avg', 'p99', 'max']
+metrics = ['avg', 'p99'] # Removed 'max'
 
 # Define a consistent linewidth and linestyle
 common_linewidth = 1
 common_linestyle = '-'
 
-# Choose a colormap with 10 distinct colors
-cmap = plt.get_cmap('tab10')
-colors = [cmap(i) for i in range(10)]
-
-# Create a mapping for conditions to colors (for all conditions)
-condition_colors_all = {}
-color_index_all = 0
-for experiment_type in unique_experiment_types:
-    if 'async_io' in experiment_type:
-        for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
-            condition_colors_all[(experiment_type, col)] = colors[color_index_all % 10]
-            color_index_all += 1
-    elif 'mmap_io' in experiment_type:
-        for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
-            condition_colors_all[(experiment_type, col)] = colors[color_index_all % 10]
-            color_index_all += 1
-    elif 'rdma_send_recv' in experiment_type:
-        for col in ['before wait', 'after wait', 'rtt']:
-            condition_colors_all[(experiment_type, col)] = colors[color_index_all % 10]
-            color_index_all += 1
-    elif 'sync_io' in experiment_type:
-        for col in ['write_duration_nsec', 'flush_duration_nsec']:
-            condition_colors_all[(experiment_type, col)] = colors[color_index_all % 10]
-            color_index_all += 1
-
-# Create a mapping for conditions to colors (with specified conditions removed)
-condition_colors_removed = {}
-color_index_removed = 0
-unique_experiment_types_removed_cmap = unique_experiment_types # Reusing for simplicity
-for experiment_type in unique_experiment_types_removed_cmap:
-    if 'async_io' in experiment_type:
-        for col in ['initiation_duration_nsec', 'write_duration_nsec']:
-            condition_colors_removed[(experiment_type, col)] = colors[color_index_removed % 10]
-            color_index_removed += 1
-    elif 'mmap_io' in experiment_type:
-        for col in ['memcpy_duration_nsec']:
-            condition_colors_removed[(experiment_type, col)] = colors[color_index_removed % 10]
-            color_index_removed += 1
-    elif 'rdma_send_recv' in experiment_type:
-        for col in ['before wait', 'after wait', 'rtt']:
-            condition_colors_removed[(experiment_type, col)] = colors[color_index_removed % 10]
-            color_index_removed += 1
-    elif 'sync_io' in experiment_type:
-        for col in ['write_duration_nsec']:
-            condition_colors_removed[(experiment_type, col)] = colors[color_index_removed % 10]
-            color_index_removed += 1
-
 # Create the 'plots' directory if it doesn't exist
 os.makedirs("plots", exist_ok=True)
 
+# Function to plot data with color mapping
+def plot_with_color_mapping(ax, subset_sorted, experiment_type, columns, metric_type, condition_colors, color_index, colors_list, label_prefix=''):
+    for col in columns:
+        metric_col = f'{col}_{metric_type}'
+        if metric_col in subset_sorted.columns:
+            if (experiment_type, col) not in condition_colors:
+                condition_colors[(experiment_type, col)] = colors_list[color_index % len(colors_list)]
+                color_index += 1
+            color = condition_colors[(experiment_type, col)]
+            subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
+            base_label_parts = col.replace('_duration_nsec', '').replace('_nsec', '').replace('elapsed_after_', '').split('_')
+            base_label = ' - '.join([part for part in base_label_parts if part])
+            label = ''
+            label_generated = False
+
+            if 'mmap_io' in experiment_type and 'msync' in col:
+                label = f'mmap_io - msync'
+                label_generated = True
+            elif 'mmap_io' in experiment_type and 'memcpy' in col:
+                label = f'mmap_io - memcpy'
+                label_generated = True
+            elif experiment_type == 'async io - O_DSYNC':
+                if 'fsync_completed' in col:
+                    label = f'async_io - O_DSYNC - fsync completed'
+                    label_generated = True
+                elif 'fsync_registered' in col:
+                    label = f'async_io - O_DSYNC - fsync registered'
+                    label_generated = True
+                elif 'write_completed' in col:
+                    label = f'async_io - O_DSYNC - write completed'
+                    label_generated = True
+                elif 'write_registered' in col:
+                    label = f'async_io - O_DSYNC - write registered'
+                    label_generated = True
+                elif 'non_blocking_time' in col:
+                    label = f'async_io - O_DSYNC - non blocking'
+                    label_generated = True
+            elif experiment_type == 'async io - O_SYNC':
+                if 'fsync_completed' in col:
+                    label = f'async_io - O_SYNC - fsync completed'
+                    label_generated = True
+                elif 'fsync_registered' in col:
+                    label = f'async_io - O_SYNC - fsync registered'
+                    label_generated = True
+                elif 'write_completed' in col:
+                    label = f'async_io - O_SYNC - write completed'
+                    label_generated = True
+                elif 'write_registered' in col:
+                    label = f'async_io - O_SYNC - write registered'
+                    label_generated = True
+                elif 'non_blocking_time' in col:
+                    label = f'async_io - O_SYNC - non blocking'
+                    label_generated = True
+            elif 'sync_io' in experiment_type:
+                if 'write' in col:
+                    label = f'sync_io - write'
+                    label_generated = True
+                elif 'flush' in col:
+                    label = f'sync_io - flush'
+                    label_generated = True
+            elif 'rdma_send_recv' in experiment_type:
+                if 'send_registered' in col or col == 'before wait':
+                    label = 'rdma_send_recv - send registered'
+                    label_generated = True
+                elif 'send_complete' in col or col == 'after wait':
+                    label = 'rdma_send_recv - send complete'
+                    label_generated = True
+                elif 'rtt' in col:
+                    label = 'rdma_send_recv - rtt'
+                    label_generated = True
+
+            if not label_generated:
+                label = f'{experiment_type.replace("async io", "async_io")} - {base_label}'
+
+            final_label = label
+            if label_prefix and not label_generated:
+                final_label = f'{label_prefix} {label}'.strip()
+            elif label_prefix and label_generated and label_prefix not in label:
+                final_label = f'{label_prefix} {label}'.strip() # Consider adding prefix if not already present
+
+            ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=final_label, color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+    return color_index, condition_colors
+
 # Create the figure and subplots for the original data (all conditions)
-fig, axes = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+fig, axes = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
 fig.suptitle('Time spent by threads for I/O')
 for i, metric_type in enumerate(metrics):
     ax = axes[i]
     ax.set_title(f'{metric_type.upper()} Time')
+    condition_colors_subplot = {}
+    color_index = 0
+    lines_count = 0
+    for experiment_type in unique_experiment_types:
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            lines_count += 5
+        elif 'mmap_io' in experiment_type:
+            lines_count += 2
+        elif 'rdma_send_recv' in experiment_type:
+            lines_count += 3
+        elif 'sync_io' in experiment_type:
+            lines_count += 2
+    cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+    colors_list = [cmap(i) for i in range(cmap.N)]
     for experiment_type in unique_experiment_types:
         subset = plot_df[plot_df['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
-        if 'async_io' in experiment_type:
-            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        if experiment_type == 'async io - O_SYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+        elif experiment_type == 'async io - O_DSYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
-            for col in ['before wait', 'after wait', 'rtt']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec', 'flush_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec', 'flush_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -181,46 +230,42 @@ for i, metric_type in enumerate(metrics):
 axes[-1].set_xlabel('Message Size (Bytes)')
 handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, 0.1, 1, 1))
+plt.tight_layout(rect=(0, 0.15, 1, 1))
 plt.savefig("plots/plot_all_conditions.png")
 
 # Create the figure and subplots for the truncated data (all conditions)
-fig_truncated_all, axes_truncated_all = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+fig_truncated_all, axes_truncated_all = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
 fig_truncated_all.suptitle(f'Time spent by threads for I/O (Message Size <= 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_truncated_all[i]
     ax.set_title(f'{metric_type.upper()} Time')
+    condition_colors_subplot = {}
+    color_index = 0
+    lines_count = 0
+    for experiment_type in unique_experiment_types_truncated_all:
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            lines_count += 5
+        elif 'mmap_io' in experiment_type:
+            lines_count += 2
+        elif 'rdma_send_recv' in experiment_type:
+            lines_count += 3
+        elif 'sync_io' in experiment_type:
+            lines_count += 2
+    cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+    colors_list = [cmap(i) for i in range(cmap.N)]
     for experiment_type in unique_experiment_types_truncated_all:
         subset = truncated_df_all[truncated_df_all['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
-        if 'async_io' in experiment_type:
-            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        if experiment_type == 'async io - O_SYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+        elif experiment_type == 'async io - O_DSYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
-            for col in ['before wait', 'after wait', 'rtt']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec', 'flush_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec', 'flush_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -230,46 +275,42 @@ for i, metric_type in enumerate(metrics):
 axes_truncated_all[-1].set_xlabel('Message Size (Bytes)')
 handles_truncated_all, labels_truncated_all = axes_truncated_all[0].get_legend_handles_labels()
 fig_truncated_all.legend(handles_truncated_all, labels_truncated_all, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, 0.1, 1, 1)) # Adjust layout to make space for the legend
+plt.tight_layout(rect=(0, 0.15, 1, 1)) # Adjust layout to make space for the legend
 plt.savefig("plots/plot_truncated_all_conditions.png")
 
 # Create the figure and subplots for the data beyond the truncation (all conditions)
-fig_beyond_all, axes_beyond_all = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+fig_beyond_all, axes_beyond_all = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
 fig_beyond_all.suptitle(f'Time spent by threads for I/O (Message Size > 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_beyond_all[i]
     ax.set_title(f'{metric_type.upper()} Time')
+    condition_colors_subplot = {}
+    color_index = 0
+    lines_count = 0
+    for experiment_type in unique_experiment_types_beyond_all:
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            lines_count += 5
+        elif 'mmap_io' in experiment_type:
+            lines_count += 2
+        elif 'rdma_send_recv' in experiment_type:
+            lines_count += 3
+        elif 'sync_io' in experiment_type:
+            lines_count += 2
+    cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+    colors_list = [cmap(i) for i in range(cmap.N)]
     for experiment_type in unique_experiment_types_beyond_all:
         subset = beyond_truncated_df_all[beyond_truncated_df_all['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
-        if 'async_io' in experiment_type:
-            for col in ['initiation_duration_nsec', 'write_duration_nsec', 'fsync_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        if experiment_type == 'async io - O_SYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+        elif experiment_type == 'async io - O_DSYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            for col in ['memcpy_duration_nsec', 'msync_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
-            for col in ['before wait', 'after wait', 'rtt']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec', 'flush_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec', 'flush_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -280,46 +321,42 @@ for i, metric_type in enumerate(metrics):
 axes_beyond_all[-1].set_xlabel('Message Size (Bytes)')
 handles_beyond_all, labels_beyond_all = axes_beyond_all[0].get_legend_handles_labels()
 fig_beyond_all.legend(handles_beyond_all, labels_beyond_all, loc='lower center', ncol=3)
-plt.tight_layout(rect=(0, 0.1, 1, 1))
+plt.tight_layout(rect=(0, 0.15, 1, 1))
 plt.savefig("plots/plot_beyond_truncated_all_conditions.png")
 
 # Create the figure and subplots for the original data (without the two conditions) - ALL DATA
-fig_removed, axes_removed = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+fig_removed, axes_removed = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
 fig_removed.suptitle('Time spent by threads for I/O (Conditions Removed)')
 for i, metric_type in enumerate(metrics):
     ax = axes_removed[i]
     ax.set_title(f'{metric_type.upper()} Time')
+    condition_colors_subplot = {}
+    color_index = 0
+    lines_count = 0
+    for experiment_type in unique_experiment_types:
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            lines_count += 2
+        elif 'mmap_io' in experiment_type:
+            lines_count += 1
+        elif 'rdma_send_recv' in experiment_type:
+            lines_count += 3
+        elif 'sync_io' in experiment_type:
+            lines_count += 1
+    cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+    colors_list = [cmap(i) for i in range(cmap.N)]
     for experiment_type in unique_experiment_types:
         subset = plot_df[plot_df['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
-        if 'async_io' in experiment_type:
-            for col in ['initiation_duration_nsec', 'write_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        if experiment_type == 'async io - O_SYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+        elif experiment_type == 'async io - O_DSYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            for col in ['memcpy_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
-            for col in ['before wait', 'after wait', 'rtt']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -333,43 +370,39 @@ fig_removed.legend(handles_removed, labels_removed, loc='lower center', ncol=3)
 plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_removed_conditions.png")
 
-# Create the figure and subplots for the original data (without the two conditions) - TRUNCATED
-fig_truncated_removed, axes_truncated_removed = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+# Create the figure and subplots for the truncated data (without the two conditions)
+fig_truncated_removed, axes_truncated_removed = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
 fig_truncated_removed.suptitle('Time spent by threads for I/O (Conditions Removed, <= 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_truncated_removed[i]
     ax.set_title(f'{metric_type.upper()} Time')
+    condition_colors_subplot = {}
+    color_index = 0
+    lines_count = 0
+    for experiment_type in unique_experiment_types_truncated_removed:
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            lines_count += 2
+        elif 'mmap_io' in experiment_type:
+            lines_count += 1
+        elif 'rdma_send_recv' in experiment_type:
+            lines_count += 3
+        elif 'sync_io' in experiment_type:
+            lines_count += 1
+    cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+    colors_list = [cmap(i) for i in range(cmap.N)]
     for experiment_type in unique_experiment_types_truncated_removed:
         subset = truncated_df_removed[truncated_df_removed['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
-        if 'async_io' in experiment_type:
-            for col in ['initiation_duration_nsec', 'write_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        if experiment_type == 'async io - O_SYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+        elif experiment_type == 'async io - O_DSYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            for col in ['memcpy_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
-            for col in ['before wait', 'after wait', 'rtt']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -382,43 +415,39 @@ fig_truncated_removed.legend(handles_truncated_removed, labels_truncated_removed
 plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_truncated_removed_conditions.png")
 
-# Create the figure and subplots for the original data (without the two conditions) - BEYOND TRUNCATED
-fig_beyond_truncated_removed, axes_beyond_truncated_removed = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+# Create the figure and subplots for the data beyond the truncation (without the two conditions)
+fig_beyond_truncated_removed, axes_beyond_truncated_removed = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
 fig_beyond_truncated_removed.suptitle('Time spent by threads for I/O (Conditions Removed, > 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_beyond_truncated_removed[i]
     ax.set_title(f'{metric_type.upper()} Time')
+    condition_colors_subplot = {}
+    color_index = 0
+    lines_count = 0
+    for experiment_type in unique_experiment_types_beyond_removed:
+        if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
+            lines_count += 2
+        elif 'mmap_io' in experiment_type:
+            lines_count += 1
+        elif 'rdma_send_recv' in experiment_type:
+            lines_count += 3
+        elif 'sync_io' in experiment_type:
+            lines_count += 1
+    cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+    colors_list = [cmap(i) for i in range(cmap.N)]
     for experiment_type in unique_experiment_types_beyond_removed:
         subset = beyond_truncated_df_removed[beyond_truncated_df_removed['Experiment Type'] == experiment_type]
         subset_sorted = subset.sort_values(by='Message Size')
-        if 'async_io' in experiment_type:
-            for col in ['initiation_duration_nsec', 'write_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+        if experiment_type == 'async io - O_SYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+        elif experiment_type == 'async io - O_DSYNC':
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            for col in ['memcpy_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
-            for col in ['before wait', 'after wait', 'rtt']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
-            for col in ['write_duration_nsec']:
-                metric_col = f'{col}_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_removed.get((experiment_type, col))
-                    subset_sorted[metric_col] = subset_sorted[metric_col] / 1000
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col], label=f'{experiment_type} - {col}'.replace('_duration_nsec', ''), color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
     ax.set_xscale('log', base=2)
     ax.set_ylabel('Time (µs)')
     ax.grid(True)
@@ -439,7 +468,7 @@ for data_range, df, filename_suffix in [
     ("Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
     ("Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
 ]:
-    fig_set1, axes_set1 = plt.subplots(len(metrics), 1, figsize=(15, 10), sharex=True) # Uniform figsize
+    fig_set1, axes_set1 = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
     title_prefix = f"{plot_set1_base_title}"
     if data_range != "All Data":
         title_prefix += f" - {data_range}"
@@ -449,29 +478,37 @@ for data_range, df, filename_suffix in [
         ax = axes_set1[i]
         ax.set_title(f'{metric_type.upper()} Time')
         ax.grid(True) # Ensure grid is always present
+        condition_colors_subplot = {}
+        color_index = 0
+        lines_count = 0
+        for experiment_type in unique_experiment_types_current:
+            if 'sync_io' in experiment_type:
+                lines_count += len(['flush_duration_nsec'])
+            elif experiment_type == 'async io - O_SYNC':
+                lines_count += len(['elapsed_after_fsync_completed_nsec', 'elapsed_after_fsync_registered_nsec'])
+            elif experiment_type == 'async io - O_DSYNC':
+                lines_count += len(['elapsed_after_fsync_completed_nsec', 'elapsed_after_fsync_registered_nsec'])
+            elif 'mmap_io' in experiment_type:
+                lines_count += len(['elapsed_after_msync_nsec'])
+            elif 'rdma_send_recv' in experiment_type:
+                lines_count += len(['rtt'])
+
+        cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+        colors_list = [cmap(i) for i in range(cmap.N)]
+
         for experiment_type in unique_experiment_types_current:
             subset = df[df['Experiment Type'] == experiment_type]
             subset_sorted = subset.sort_values(by='Message Size')
             if 'sync_io' in experiment_type:
-                metric_col = f'flush_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'flush_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - flush_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
-            elif 'async_io' in experiment_type:
-                metric_col = f'fsync_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'fsync_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - fsync_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['flush_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+            elif experiment_type == 'async io - O_SYNC':
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_fsync_completed_nsec', 'elapsed_after_fsync_registered_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+            elif experiment_type == 'async io - O_DSYNC':
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_fsync_completed_nsec', 'elapsed_after_fsync_registered_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'mmap_io' in experiment_type:
-                metric_col = f'msync_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'msync_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - msync_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'rdma_send_recv' in experiment_type:
-                metric_col = f'rtt_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'rtt'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - rtt', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['rtt'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
         ax.set_xscale('log', base=2)
         ax.set_ylabel('Time (µs)')
         max_size = df['Message Size'].max() if not df.empty else 0
@@ -485,7 +522,7 @@ for data_range, df, filename_suffix in [
     axes_set1[-1].set_xlabel('Message Size (Bytes)')
     handles_set1, labels_set1 = axes_set1[0].get_legend_handles_labels()
     fig_set1.legend(handles_set1, labels_set1, loc='lower center', ncol=2)
-    plt.tight_layout(rect=(0, 0.1, 1, 1))
+    plt.tight_layout(rect=(0, 0.12, 1, 1))
     plt.savefig(f"plots/plot_set1_{filename_suffix}.png")
     plt.close(fig_set1)
 
@@ -496,7 +533,7 @@ for data_range, df, filename_suffix in [
     ("Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
     ("Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
 ]:
-    fig_set2, axes_set2 = plt.subplots(len(metrics), 1, figsize=(15, 10), sharex=True) # Uniform figsize
+    fig_set2, axes_set2 = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
     title_prefix = f"{plot_set2_base_title}"
     if data_range != "All Data":
         title_prefix += f" - {data_range}"
@@ -506,29 +543,37 @@ for data_range, df, filename_suffix in [
         ax = axes_set2[i]
         ax.set_title(f'{metric_type.upper()} Time')
         ax.grid(True)
+        condition_colors_subplot = {}
+        color_index = 0
+        lines_count = 0
+        for experiment_type in unique_experiment_types_current:
+            if 'sync_io' in experiment_type:
+                lines_count += len(['write_duration_nsec'])
+            elif experiment_type == 'async io - O_SYNC':
+                lines_count += len(['elapsed_after_write_completed_nsec'])
+            elif experiment_type == 'async io - O_DSYNC':
+                lines_count += len(['elapsed_after_write_completed_nsec'])
+            elif 'mmap_io' in experiment_type:
+                lines_count += len(['elapsed_after_memcpy_nsec'])
+            elif 'rdma_send_recv' in experiment_type:
+                lines_count += len(['after wait'])
+
+        cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+        colors_list = [cmap(i) for i in range(cmap.N)]
+
         for experiment_type in unique_experiment_types_current:
             subset = df[df['Experiment Type'] == experiment_type]
             subset_sorted = subset.sort_values(by='Message Size')
             if 'sync_io' in experiment_type:
-                metric_col = f'write_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'write_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - write_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
-            elif 'async_io' in experiment_type:
-                metric_col = f'write_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'write_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - write_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['write_duration_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+            elif experiment_type == 'async io - O_SYNC':
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+            elif experiment_type == 'async io - O_DSYNC':
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'mmap_io' in experiment_type:
-                metric_col = f'memcpy_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'memcpy_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - memcpy_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'rdma_send_recv' in experiment_type:
-                metric_col = f'after wait_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'after wait'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - after wait', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['after wait'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
         ax.set_xscale('log', base=2)
         ax.set_ylabel('Time (µs)')
         max_size = df['Message Size'].max() if not df.empty else 0
@@ -548,12 +593,13 @@ for data_range, df, filename_suffix in [
 
 # --- New Plot Set 3: Time for 'registering' write ---
 plot_set3_base_title = "Time for 'registering' write"
+valid_experiment_types_set3 = ['async io - O_SYNC', 'async io - O_DSYNC', 'rdma_send_recv']
 for data_range, df, filename_suffix in [
     ("All Data", plot_df, "all"),
     ("Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
     ("Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
 ]:
-    fig_set3, axes_set3 = plt.subplots(len(metrics), 1, figsize=(15, 10), sharex=True) # Uniform figsize
+    fig_set3, axes_set3 = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
     title_prefix = f"{plot_set3_base_title}"
     if data_range != "All Data":
         title_prefix += f" - {data_range}"
@@ -563,19 +609,33 @@ for data_range, df, filename_suffix in [
         ax = axes_set3[i]
         ax.set_title(f'{metric_type.upper()} Time')
         ax.grid(True)
+        condition_colors_subplot = {}
+        color_index = 0
+        lines_count = 0
         for experiment_type in unique_experiment_types_current:
+            if experiment_type not in valid_experiment_types_set3:
+                continue
+            if experiment_type == 'async io - O_SYNC':
+                lines_count += len(['elapsed_after_write_registered_nsec'])
+            elif experiment_type == 'async io - O_DSYNC':
+                lines_count += len(['elapsed_after_write_registered_nsec'])
+            elif 'rdma_send_recv' in experiment_type:
+                lines_count += len(['before wait'])
+
+        cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
+        colors_list = [cmap(i) for i in range(cmap.N)]
+
+        for experiment_type in unique_experiment_types_current:
+            if experiment_type not in valid_experiment_types_set3:
+                continue
             subset = df[df['Experiment Type'] == experiment_type]
             subset_sorted = subset.sort_values(by='Message Size')
-            if 'async_io' in experiment_type:
-                metric_col = f'initiation_duration_nsec_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'initiation_duration_nsec'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - initiation_duration_nsec', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+            if experiment_type == 'async io - O_SYNC':
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+            elif experiment_type == 'async io - O_DSYNC':
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'rdma_send_recv' in experiment_type:
-                metric_col = f'before wait_{metric_type}'
-                if metric_col in subset_sorted.columns:
-                    color = condition_colors_all.get((experiment_type, 'before wait'))
-                    ax.plot(subset_sorted['Message Size'], subset_sorted[metric_col] / 1000, label=f'{experiment_type} - before wait', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
         ax.set_xscale('log', base=2)
         ax.set_ylabel('Time (µs)')
         max_size = df['Message Size'].max() if not df.empty else 0
@@ -589,27 +649,6 @@ for data_range, df, filename_suffix in [
     axes_set3[-1].set_xlabel('Message Size (Bytes)')
     handles_set3, labels_set3 = axes_set3[0].get_legend_handles_labels()
     fig_set3.legend(handles_set3, labels_set3, loc='lower center', ncol=2)
-    plt.tight_layout(rect=(0, 0.1, 1, 1))
+    plt.tight_layout(rect=(0, 0.07, 1, 1))
     plt.savefig(f"plots/plot_set3_{filename_suffix}.png")
     plt.close(fig_set3)
-
-# --- Adjusting legend labels for the original plots ---
-def adjust_legend_labels(filename):
-    fig = plt.figure() # Create a dummy figure to load the saved plot
-    fig.canvas.draw() # Need to draw the canvas before we can access the renderer
-    with open(filename, 'rb') as f:
-        image = plt.imread(f)
-    plt.imshow(image)
-    handles, labels = plt.gca().get_legend_handles_labels()
-    if handles:
-        plt.legend(handles, [label.replace('_duration_nsec', '') for label in labels], loc='lower center', ncol=3)
-        plt.tight_layout(rect=(0, 0.1, 1, 1)) # Ensure rect is correct
-        plt.savefig(filename)
-    plt.close()
-
-adjust_legend_labels("plots/plot_all_conditions.png")
-adjust_legend_labels("plots/plot_truncated_all_conditions.png")
-adjust_legend_labels("plots/plot_beyond_truncated_all_conditions.png")
-adjust_legend_labels("plots/plot_removed_conditions.png")
-adjust_legend_labels("plots/plot_truncated_removed_conditions.png")
-adjust_legend_labels("plots/plot_beyond_truncated_removed_conditions.png")

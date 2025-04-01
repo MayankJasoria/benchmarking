@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include <cmath> // For std::ceil
 
 DEFINE_int32(msg_size, 1024, "Number of bytes to write to file in each iteration");
 DEFINE_int32(msg_count, 1000, "Number of messages to send");
@@ -19,20 +20,20 @@ DEFINE_int32(msg_count, 1000, "Number of messages to send");
 using namespace std;
 
 string generateRandomString(size_t numBytes) {
-	const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-	const size_t charsetSize = sizeof(charset) - 1;
-	string result;
-	result.reserve(numBytes);
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const size_t charsetSize = sizeof(charset) - 1;
+    string result;
+    result.reserve(numBytes);
 
-	random_device rd;
-	mt19937 generator(rd());
-	uniform_int_distribution<> distribution(0, charsetSize - 1);
+    random_device rd;
+    mt19937 generator(rd());
+    uniform_int_distribution<> distribution(0, charsetSize - 1);
 
-	for (size_t i = 0; i < numBytes; ++i) {
-		result += charset[distribution(generator)];
-	}
+    for (size_t i = 0; i < numBytes; ++i) {
+       result += charset[distribution(generator)];
+    }
 
-	return result;
+    return result;
 }
 
 struct MmapInfo {
@@ -77,22 +78,33 @@ pair<long, long> perform_mmap_write(MmapInfo& mmap_info, const string& data_to_w
 
     auto start_time = chrono::high_resolution_clock::now();
 
-	// Perform write to memory
+    // Perform write to memory
     std::memcpy(static_cast<char*>(mmap_info.mapped_region) + offset, data_to_write.c_str(), write_size);
     auto before_wait_time = chrono::high_resolution_clock::now();
     auto initialization_duration = chrono::duration_cast<chrono::nanoseconds>(before_wait_time - start_time).count();
-	spdlog::debug("Time taken for memcpy at offset {}: {} nanoseconds", offset, initialization_duration);
+    spdlog::debug("Time taken for memcpy at offset {}: {} nanoseconds", offset, initialization_duration);
 
-	// Wait for write to be flushed to disk (only the written region)
-	if (msync(static_cast<char*>(mmap_info.mapped_region) + offset, write_size, MS_SYNC) == -1) {
-		spdlog::error("Error syncing mapped region to file: {}", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	auto after_wait_time = chrono::high_resolution_clock::now();
-	auto total_duration = chrono::duration_cast<chrono::nanoseconds>(after_wait_time - start_time).count();
-    spdlog::debug("Time taken for write to disk: {} ", total_duration);
+    // Wait for write to be flushed to disk (only the written region and its containing pages)
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size == -1) {
+        spdlog::error("Error getting page size: {}", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
-	return make_pair(initialization_duration, total_duration);
+    off_t page_aligned_start = (offset / page_size) * page_size;
+    off_t page_aligned_end = std::ceil((double)(offset + write_size) / page_size) * page_size;
+    size_t flush_size = page_aligned_end - page_aligned_start;
+
+    if (msync(static_cast<char*>(mmap_info.mapped_region) + page_aligned_start, flush_size, MS_SYNC) == -1) {
+       spdlog::error("Error syncing mapped region to file: {}", strerror(errno));
+       exit(EXIT_FAILURE);
+    }
+    auto after_wait_time = chrono::high_resolution_clock::now();
+    auto total_duration = chrono::duration_cast<chrono::nanoseconds>(after_wait_time - start_time).count();
+    spdlog::debug("Time taken for write to disk (flushing {} bytes from offset {}): {} nanoseconds ",
+                  flush_size, page_aligned_start, total_duration);
+
+    return make_pair(initialization_duration, total_duration);
 }
 
 int close_mmap_file(MmapInfo& mmap_info) {
@@ -112,39 +124,39 @@ int close_mmap_file(MmapInfo& mmap_info) {
 
 
 void writeMmapResultsToFile(const vector<pair<long, long>>& times, int msg_size) {
-	// Construct the output file name
-	std::string filename = "/hdd2/rdma-libs/results/mmap_io_" + std::to_string(msg_size) + ".txt";
-	std::ofstream outputFile(filename);
+    // Construct the output file name
+    std::string filename = "/hdd2/rdma-libs/results/mmap_io_" + std::to_string(msg_size) + ".txt";
+    std::ofstream outputFile(filename);
 
-	// Check if the file was opened successfully
-	if (outputFile.is_open()) {
-		// Write the header row
-		outputFile << "memcpy_duration_nsec\tmsync_duration_nsec\n";
+    // Check if the file was opened successfully
+    if (outputFile.is_open()) {
+       // Write the header row
+       outputFile << "elapsed_after_memcpy_nsec\telapsed_after_msync_nsec\n";
 
-		// Write the data from the 'times' vector
-		for (pair time : times) {
-			outputFile << time.first << "\t" << time.second << "\n";
-		}
+       // Write the data from the 'times' vector
+       for (pair time : times) {
+          outputFile << time.first << "\t" << time.second << "\n";
+       }
 
-		// Close the file
-		outputFile.close();
-		std::cout << "Data written to: " << filename << std::endl;
-	} else {
-		std::cerr << "Unable to open file: " << filename << std::endl;
-	}
+       // Close the file
+       outputFile.close();
+       std::cout << "Data written to: " << filename << std::endl;
+    } else {
+       std::cerr << "Unable to open file: " << filename << std::endl;
+    }
 }
 
 int main(int argc, char* argv[]) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 #ifdef DEBUG_BUILD
-	spdlog::set_level(spdlog::level::debug);
+    spdlog::set_level(spdlog::level::debug);
 #endif
 
 #ifndef DEBUG_BUILD
-	spdlog::set_level(spdlog::level::info);
+    spdlog::set_level(spdlog::level::info);
 #endif
     int num_bytes = FLAGS_msg_size;
-	string filename = "/hdd2/rdma-libs/files/mmap_append_test_" + to_string(num_bytes) + ".txt"; // Replace with your file path
+    string filename = "/hdd2/rdma-libs/files/mmap_append_test_" + to_string(num_bytes) + ".txt"; // Replace with your file path
     size_t initial_map_size = (size_t) 1024 * 1024 * 1024; // 1 GB; I don't expect that to be filled in 1 sec in my tests
     MmapInfo mmap_info = open_mmap_file(filename.c_str(), initial_map_size);
 
@@ -152,22 +164,22 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-	int warm_up_msgs = 1000;
+    int warm_up_msgs = 1000;
     int saved_msgs_count = min(warm_up_msgs, FLAGS_msg_count);
     string saved_msgs[saved_msgs_count];
     for (int i = 0; i < saved_msgs_count; ++i) {
         saved_msgs[i] = generateRandomString(num_bytes);
     }
 
-	// warm up
-	off_t current_offset = 0;
-	for (int i = 0, idx = 0; i < warm_up_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
-		string msg = saved_msgs[i];
-		perform_mmap_write(mmap_info, msg, current_offset);
-		current_offset += msg.size();
-	}
+    // warm up
+    off_t current_offset = 0;
+    for (int i = 0, idx = 0; i < warm_up_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
+       string msg = saved_msgs[i];
+       perform_mmap_write(mmap_info, msg, current_offset);
+       current_offset += msg.size();
+    }
 
-	int num_msgs = FLAGS_msg_count;
+    int num_msgs = FLAGS_msg_count;
     vector<pair<long, long>> times(num_msgs);
     int message_count = 0;
     current_offset = 0;
@@ -185,7 +197,7 @@ int main(int argc, char* argv[]) {
 
     close_mmap_file(mmap_info);
 
-	writeMmapResultsToFile(times, num_bytes);
+    writeMmapResultsToFile(times, num_bytes);
 
     return 0;
 }
