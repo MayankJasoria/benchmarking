@@ -11,8 +11,9 @@ def read_data(file_path):
 def calculate_statistics(data, columns):
     stats = {}
     for col in columns:
-        stats[f'{col}_avg'] = data[col].mean()
-        stats[f'{col}_p99'] = data[col].quantile(0.99)
+        if col in data.columns:
+            stats[f'{col}_avg'] = data[col].mean()
+            stats[f'{col}_p99'] = data[col].quantile(0.99)
     return stats
 
 # Directory containing the files
@@ -56,7 +57,7 @@ for filename in os.listdir(directory):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             columns = ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec']
         elif 'mmap_io' in experiment_type:
-            columns = ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec']
+            columns = ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec', 'elapsed_after_fsync_nsec']
         elif 'rdma_send_recv' in experiment_type:
             columns = ['before wait', 'after wait', 'rtt']
         elif 'sync_io' in experiment_type:
@@ -119,12 +120,16 @@ def plot_with_color_mapping(ax, subset_sorted, experiment_type, columns, metric_
             label = ''
             label_generated = False
 
-            if 'mmap_io' in experiment_type and 'msync' in col:
-                label = f'mmap_io - msync'
-                label_generated = True
-            elif 'mmap_io' in experiment_type and 'memcpy' in col:
-                label = f'mmap_io - memcpy'
-                label_generated = True
+            if 'mmap_io' in experiment_type:
+                if 'msync' in col:
+                    label = f'mmap_io - msync'
+                    label_generated = True
+                elif 'memcpy' in col:
+                    label = f'mmap_io - memcpy'
+                    label_generated = True
+                elif 'fsync' in col:
+                    label = f'mmap_io - fsync'
+                    label_generated = True
             elif experiment_type == 'async io - O_DSYNC':
                 if 'fsync_completed' in col:
                     label = f'async_io - O_DSYNC - fsync completed'
@@ -200,7 +205,7 @@ for i, metric_type in enumerate(metrics):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             lines_count += 5
         elif 'mmap_io' in experiment_type:
-            lines_count += 2
+            lines_count += 3 # Increased line count for the new fsync column
         elif 'rdma_send_recv' in experiment_type:
             lines_count += 3
         elif 'sync_io' in experiment_type:
@@ -215,7 +220,7 @@ for i, metric_type in enumerate(metrics):
         elif experiment_type == 'async io - O_DSYNC':
             color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec', 'elapsed_after_fsync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
             color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
@@ -246,7 +251,7 @@ for i, metric_type in enumerate(metrics):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             lines_count += 5
         elif 'mmap_io' in experiment_type:
-            lines_count += 2
+            lines_count += 3 # Increased line count for the new fsync column
         elif 'rdma_send_recv' in experiment_type:
             lines_count += 3
         elif 'sync_io' in experiment_type:
@@ -261,7 +266,7 @@ for i, metric_type in enumerate(metrics):
         elif experiment_type == 'async io - O_DSYNC':
             color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec', 'elapsed_after_fsync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
             color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
@@ -291,7 +296,7 @@ for i, metric_type in enumerate(metrics):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             lines_count += 5
         elif 'mmap_io' in experiment_type:
-            lines_count += 2
+            lines_count += 3 # Increased line count for the new fsync column
         elif 'rdma_send_recv' in experiment_type:
             lines_count += 3
         elif 'sync_io' in experiment_type:
@@ -306,7 +311,7 @@ for i, metric_type in enumerate(metrics):
         elif experiment_type == 'async io - O_DSYNC':
             color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec', 'elapsed_after_write_completed_nsec', 'elapsed_after_fsync_registered_nsec', 'elapsed_after_fsync_completed_nsec', 'non_blocking_time_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'mmap_io' in experiment_type:
-            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
+            color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec', 'elapsed_after_msync_nsec', 'elapsed_after_fsync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'rdma_send_recv' in experiment_type:
             color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait', 'after wait', 'rtt'], metric_type, condition_colors_subplot, color_index, colors_list)
         elif 'sync_io' in experiment_type:
@@ -337,7 +342,7 @@ for i, metric_type in enumerate(metrics):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             lines_count += 2
         elif 'mmap_io' in experiment_type:
-            lines_count += 1
+            lines_count += 1 # Only memcpy for removed
         elif 'rdma_send_recv' in experiment_type:
             lines_count += 3
         elif 'sync_io' in experiment_type:
@@ -383,7 +388,7 @@ for i, metric_type in enumerate(metrics):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             lines_count += 2
         elif 'mmap_io' in experiment_type:
-            lines_count += 1
+            lines_count += 1 # Only memcpy for removed
         elif 'rdma_send_recv' in experiment_type:
             lines_count += 3
         elif 'sync_io' in experiment_type:
@@ -428,7 +433,7 @@ for i, metric_type in enumerate(metrics):
         if experiment_type == 'async io - O_SYNC' or experiment_type == 'async io - O_DSYNC':
             lines_count += 2
         elif 'mmap_io' in experiment_type:
-            lines_count += 1
+            lines_count += 1 # Only memcpy for removed
         elif 'rdma_send_recv' in experiment_type:
             lines_count += 3
         elif 'sync_io' in experiment_type:
@@ -489,7 +494,7 @@ for width, data_range, df, filename_suffix in [
             elif experiment_type == 'async io - O_DSYNC':
                 lines_count += len(['elapsed_after_fsync_completed_nsec', 'elapsed_after_fsync_registered_nsec'])
             elif 'mmap_io' in experiment_type:
-                lines_count += len(['elapsed_after_msync_nsec'])
+                lines_count += len(['elapsed_after_fsync_nsec']) # Only fsync for mmap in set 1
             elif 'rdma_send_recv' in experiment_type:
                 lines_count += len(['rtt'])
 
@@ -506,7 +511,7 @@ for width, data_range, df, filename_suffix in [
             elif experiment_type == 'async io - O_DSYNC':
                 color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_fsync_completed_nsec', 'elapsed_after_fsync_registered_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'mmap_io' in experiment_type:
-                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_msync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_fsync_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Only fsync for mmap in set 1
             elif 'rdma_send_recv' in experiment_type:
                 color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['rtt'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
         ax.set_xscale('log', base=2)
@@ -554,7 +559,7 @@ for width, data_range, df, filename_suffix in [
             elif experiment_type == 'async io - O_DSYNC':
                 lines_count += len(['elapsed_after_write_completed_nsec'])
             elif 'mmap_io' in experiment_type:
-                lines_count += len(['elapsed_after_memcpy_nsec'])
+                lines_count += len(['elapsed_after_msync_nsec', 'elapsed_after_memcpy_nsec']) # Need both for calculation
             elif 'rdma_send_recv' in experiment_type:
                 lines_count += len(['after wait'])
 
@@ -571,7 +576,15 @@ for width, data_range, df, filename_suffix in [
             elif experiment_type == 'async io - O_DSYNC':
                 color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_completed_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'mmap_io' in experiment_type:
-                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+                metric_col_msync = f'elapsed_after_msync_nsec_{metric_type}'
+                metric_col_memcpy = f'elapsed_after_memcpy_nsec_{metric_type}'
+                if metric_col_msync in subset_sorted.columns and metric_col_memcpy in subset_sorted.columns:
+                    if (experiment_type, 'mmap_io_only_msync') not in condition_colors_subplot:
+                        condition_colors_subplot[(experiment_type, 'mmap_io_only_msync')] = colors_list[color_index % len(colors_list)]
+                        color_index += 1
+                    color = condition_colors_subplot[(experiment_type, 'mmap_io_only_msync')]
+                    msync_minus_memcpy = (subset_sorted[metric_col_msync] - subset_sorted[metric_col_memcpy]) / 1000
+                    ax.plot(subset_sorted['Message Size'], msync_minus_memcpy, label='mmap_io - only msync', color=color, linewidth=common_linewidth, linestyle=common_linestyle)
             elif 'rdma_send_recv' in experiment_type:
                 color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['after wait'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
         ax.set_xscale('log', base=2)
@@ -593,7 +606,7 @@ for width, data_range, df, filename_suffix in [
 
 # --- New Plot Set 3: Time for 'registering' write ---
 plot_set3_base_title = "Time for 'registering' write"
-valid_experiment_types_set3 = ['async io - O_SYNC', 'async io - O_DSYNC', 'rdma_send_recv']
+valid_experiment_types_set3 = ['async io - O_SYNC', 'async io - O_DSYNC', 'rdma_send_recv', 'mmap_io'] # Added mmap_io
 for width, data_range, df, filename_suffix in [
     (15, "All Data", plot_df, "all"),
     (10, "Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
@@ -621,6 +634,8 @@ for width, data_range, df, filename_suffix in [
                 lines_count += len(['elapsed_after_write_registered_nsec'])
             elif 'rdma_send_recv' in experiment_type:
                 lines_count += len(['before wait'])
+            elif 'mmap_io' in experiment_type:
+                lines_count += len(['elapsed_after_memcpy_nsec']) # Only memcpy for mmap in set 3
 
         cmap = plt.get_cmap('tab10') if lines_count <= 10 else plt.get_cmap('tab20')
         colors_list = [cmap(i) for i in range(cmap.N)]
@@ -636,6 +651,8 @@ for width, data_range, df, filename_suffix in [
                 color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_write_registered_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
             elif 'rdma_send_recv' in experiment_type:
                 color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['before wait'], metric_type, condition_colors_subplot, color_index, colors_list) # Removed label_prefix
+            elif 'mmap_io' in experiment_type:
+                color_index, condition_colors_subplot = plot_with_color_mapping(ax, subset_sorted, experiment_type, ['elapsed_after_memcpy_nsec'], metric_type, condition_colors_subplot, color_index, colors_list) # Only memcpy for mmap in set 3
         ax.set_xscale('log', base=2)
         ax.set_ylabel('Time (µs)')
         max_size = df['Message Size'].max() if not df.empty else 0

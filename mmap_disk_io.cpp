@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <vector>
 #include <cmath> // For std::ceil
+#include <array>   // For std::array
 
 DEFINE_int32(msg_size, 1024, "Number of bytes to write to file in each iteration");
 DEFINE_int32(msg_count, 1000, "Number of messages to send");
@@ -68,7 +69,7 @@ MmapInfo open_mmap_file(const char* filename, size_t size) {
     return info;
 }
 
-pair<long, long> perform_mmap_write(MmapInfo& mmap_info, const string& data_to_write, off_t offset) {
+array<long, 3> perform_mmap_write(MmapInfo& mmap_info, const string& data_to_write, off_t offset) {
     size_t write_size = data_to_write.size();
     if (offset + write_size > mmap_info.map_size) {
         spdlog::error("Write beyond mapped region: offset={}, write_size={}, map_size={}",
@@ -80,9 +81,9 @@ pair<long, long> perform_mmap_write(MmapInfo& mmap_info, const string& data_to_w
 
     // Perform write to memory
     std::memcpy(static_cast<char*>(mmap_info.mapped_region) + offset, data_to_write.c_str(), write_size);
-    auto before_wait_time = chrono::high_resolution_clock::now();
-    auto initialization_duration = chrono::duration_cast<chrono::nanoseconds>(before_wait_time - start_time).count();
-    spdlog::debug("Time taken for memcpy at offset {}: {} nanoseconds", offset, initialization_duration);
+    auto before_msync_time = chrono::high_resolution_clock::now();
+    auto memcpy_duration = chrono::duration_cast<chrono::nanoseconds>(before_msync_time - start_time).count();
+    spdlog::debug("Time taken for memcpy at offset {}: {} nanoseconds", offset, memcpy_duration);
 
     // Wait for write to be flushed to disk (only the written region and its containing pages)
     long page_size = sysconf(_SC_PAGESIZE);
@@ -99,12 +100,21 @@ pair<long, long> perform_mmap_write(MmapInfo& mmap_info, const string& data_to_w
        spdlog::error("Error syncing mapped region to file: {}", strerror(errno));
        exit(EXIT_FAILURE);
     }
-    auto after_wait_time = chrono::high_resolution_clock::now();
-    auto total_duration = chrono::duration_cast<chrono::nanoseconds>(after_wait_time - start_time).count();
-    spdlog::debug("Time taken for write to disk (flushing {} bytes from offset {}): {} nanoseconds ",
-                  flush_size, page_aligned_start, total_duration);
+    auto after_msync_time = chrono::high_resolution_clock::now();
+    auto msync_duration = chrono::duration_cast<chrono::nanoseconds>(after_msync_time - before_msync_time).count();
+    spdlog::debug("Time taken for msync (flushing {} bytes from offset {}): {} nanoseconds ",
+                  flush_size, page_aligned_start, msync_duration);
 
-    return make_pair(initialization_duration, total_duration);
+    // Add fsync call and capture total elapsed time
+    if (fsync(mmap_info.fd) == -1) {
+        spdlog::error("Error calling fsync on file descriptor: {}", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    auto after_fsync_time = chrono::high_resolution_clock::now();
+    auto total_duration = chrono::duration_cast<chrono::nanoseconds>(after_fsync_time - start_time).count();
+    spdlog::debug("Total time taken after fsync: {} nanoseconds", total_duration);
+
+    return {memcpy_duration, msync_duration, total_duration};
 }
 
 int close_mmap_file(MmapInfo& mmap_info) {
@@ -123,7 +133,7 @@ int close_mmap_file(MmapInfo& mmap_info) {
 }
 
 
-void writeMmapResultsToFile(const vector<pair<long, long>>& times, int msg_size) {
+void writeMmapResultsToFile(const vector<array<long, 3>>& times, int msg_size) {
     // Construct the output file name
     std::string filename = "/hdd2/rdma-libs/results/mmap_io_" + std::to_string(msg_size) + ".txt";
     std::ofstream outputFile(filename);
@@ -131,18 +141,18 @@ void writeMmapResultsToFile(const vector<pair<long, long>>& times, int msg_size)
     // Check if the file was opened successfully
     if (outputFile.is_open()) {
        // Write the header row
-       outputFile << "elapsed_after_memcpy_nsec\telapsed_after_msync_nsec\n";
+       outputFile << "elapsed_after_memcpy_nsec\telapsed_after_msync_nsec\telapsed_after_fsync_nsec\n";
 
        // Write the data from the 'times' vector
-       for (pair time : times) {
-          outputFile << time.first << "\t" << time.second << "\n";
+       for (const auto& time_array : times) {
+          outputFile << time_array[0] << "\t" << time_array[1] << "\t" << time_array[2] << "\n";
        }
 
        // Close the file
        outputFile.close();
-       std::cout << "Data written to: " << filename << std::endl;
+       std::cout << "Data written to: " << filename << '\n';
     } else {
-       std::cerr << "Unable to open file: " << filename << std::endl;
+       std::cerr << "Unable to open file: " << filename << '\n';
     }
 }
 
@@ -180,12 +190,12 @@ int main(int argc, char* argv[]) {
     }
 
     int num_msgs = FLAGS_msg_count;
-    vector<pair<long, long>> times(num_msgs);
+    vector<array<long, 3>> times(num_msgs);
     int message_count = 0;
     current_offset = 0;
     for (int i = 0, idx = 0; i < num_msgs; ++i, idx = (idx + 1) % saved_msgs_count) {
         string msg = saved_msgs[i];
-        pair<long, long> elapsed_nsec = perform_mmap_write(mmap_info, msg, current_offset);
+        array<long, 3> elapsed_nsec = perform_mmap_write(mmap_info, msg, current_offset);
         times[i] = elapsed_nsec;
         message_count++;
         current_offset += msg.size();
