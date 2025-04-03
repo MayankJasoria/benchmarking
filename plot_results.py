@@ -234,7 +234,7 @@ plt.tight_layout(rect=(0, 0.15, 1, 1))
 plt.savefig("plots/plot_all_conditions.png")
 
 # Create the figure and subplots for the truncated data (all conditions)
-fig_truncated_all, axes_truncated_all = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+fig_truncated_all, axes_truncated_all = plt.subplots(len(metrics), 1, figsize=(10, 8), sharex=True) # Adjusted figsize
 fig_truncated_all.suptitle(f'Time spent by threads for I/O (Message Size <= 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_truncated_all[i]
@@ -279,7 +279,7 @@ plt.tight_layout(rect=(0, 0.15, 1, 1)) # Adjust layout to make space for the leg
 plt.savefig("plots/plot_truncated_all_conditions.png")
 
 # Create the figure and subplots for the data beyond the truncation (all conditions)
-fig_beyond_all, axes_beyond_all = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+fig_beyond_all, axes_beyond_all = plt.subplots(len(metrics), 1, figsize=(10, 8), sharex=True) # Adjusted figsize
 fig_beyond_all.suptitle(f'Time spent by threads for I/O (Message Size > 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_beyond_all[i]
@@ -371,7 +371,7 @@ plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_removed_conditions.png")
 
 # Create the figure and subplots for the truncated data (without the two conditions)
-fig_truncated_removed, axes_truncated_removed = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+fig_truncated_removed, axes_truncated_removed = plt.subplots(len(metrics), 1, figsize=(10, 8), sharex=True) # Adjusted figsize
 fig_truncated_removed.suptitle('Time spent by threads for I/O (Conditions Removed, <= 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_truncated_removed[i]
@@ -416,7 +416,7 @@ plt.tight_layout(rect=(0, 0.1, 1, 1))
 plt.savefig("plots/plot_truncated_removed_conditions.png")
 
 # Create the figure and subplots for the data beyond the truncation (without the two conditions)
-fig_beyond_truncated_removed, axes_beyond_truncated_removed = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+fig_beyond_truncated_removed, axes_beyond_truncated_removed = plt.subplots(len(metrics), 1, figsize=(10, 8), sharex=True) # Adjusted figsize
 fig_beyond_truncated_removed.suptitle('Time spent by threads for I/O (Conditions Removed, > 16KB)')
 for i, metric_type in enumerate(metrics):
     ax = axes_beyond_truncated_removed[i]
@@ -463,12 +463,12 @@ plt.savefig("plots/plot_beyond_truncated_removed_conditions.png")
 
 # --- New Plot Set 1: Time for complete write ---
 plot_set1_base_title = "Time for complete write"
-for data_range, df, filename_suffix in [
-    ("All Data", plot_df, "all"),
-    ("Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
-    ("Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
+for width, data_range, df, filename_suffix in [
+    (15, "All Data", plot_df, "all"),
+    (10, "Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
+    (8, "Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
 ]:
-    fig_set1, axes_set1 = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+    fig_set1, axes_set1 = plt.subplots(len(metrics), 1, figsize=(width, 8), sharex=True) # Adjusted figsize
     title_prefix = f"{plot_set1_base_title}"
     if data_range != "All Data":
         title_prefix += f" - {data_range}"
@@ -528,12 +528,12 @@ for data_range, df, filename_suffix in [
 
 # --- New Plot Set 2: Time for 'cached' write ---
 plot_set2_base_title = "Time for 'cached' write"
-for data_range, df, filename_suffix in [
-    ("All Data", plot_df, "all"),
-    ("Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
-    ("Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
+for width, data_range, df, filename_suffix in [
+    (15, "All Data", plot_df, "all"),
+    (10, "Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
+    (8, "Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
 ]:
-    fig_set2, axes_set2 = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+    fig_set2, axes_set2 = plt.subplots(len(metrics), 1, figsize=(width, 8), sharex=True) # Adjusted figsize
     title_prefix = f"{plot_set2_base_title}"
     if data_range != "All Data":
         title_prefix += f" - {data_range}"
@@ -594,12 +594,12 @@ for data_range, df, filename_suffix in [
 # --- New Plot Set 3: Time for 'registering' write ---
 plot_set3_base_title = "Time for 'registering' write"
 valid_experiment_types_set3 = ['async io - O_SYNC', 'async io - O_DSYNC', 'rdma_send_recv']
-for data_range, df, filename_suffix in [
-    ("All Data", plot_df, "all"),
-    ("Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
-    ("Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
+for width, data_range, df, filename_suffix in [
+    (15, "All Data", plot_df, "all"),
+    (10, "Up to 16KB", plot_df[plot_df['Message Size'] <= 16384], "truncated"),
+    (8, "Beyond 16KB", plot_df[plot_df['Message Size'] > 16384], "beyond_truncated")
 ]:
-    fig_set3, axes_set3 = plt.subplots(len(metrics), 1, figsize=(15, 8), sharex=True) # Adjusted figsize
+    fig_set3, axes_set3 = plt.subplots(len(metrics), 1, figsize=(width, 8), sharex=True) # Adjusted figsize
     title_prefix = f"{plot_set3_base_title}"
     if data_range != "All Data":
         title_prefix += f" - {data_range}"

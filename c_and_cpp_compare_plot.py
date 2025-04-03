@@ -5,7 +5,7 @@ from matplotlib.ticker import LogFormatter, FuncFormatter
 
 def analyze_rdma_results(results_dir="compare_results"):
     """
-    Analyzes RDMA result files to extract average, p99, and max durations for each column.
+    Analyzes RDMA result files to extract average and p99 durations for each column.
 
     Args:
         results_dir (str): The directory containing the result files.
@@ -13,12 +13,13 @@ def analyze_rdma_results(results_dir="compare_results"):
     Returns:
         dict: A dictionary where keys are experiment types ("cpp", "c wrapper")
               and values are dictionaries with message sizes as keys and
-              a dictionary of {'before wait': {'avg': ..., 'p99': ..., 'max': ...},
-                             'after wait': {'avg': ..., 'p99': ..., 'max': ...},
-                             'rtt': {'avg': ..., 'p99': ..., 'max': ...}}.
+              a dictionary of {'send registered': {'avg': ..., 'p99': ...},
+                             'send completed': {'avg': ..., 'p99': ...},
+                             'rtt': {'avg': ..., 'p99': ...}}.
     """
     all_data = {"cpp": {}, "c wrapper": {}}
     column_names = ["before wait", "after wait", "rtt"]
+    new_column_names_mapping = {"before wait": "send registered", "after wait": "send completed", "rtt": "rtt"}
 
     for filename in os.listdir(results_dir):
         if filename.startswith("rdma_send_recv_c_") and filename.endswith(".txt"):
@@ -43,10 +44,9 @@ def analyze_rdma_results(results_dir="compare_results"):
                 all_data[experiment_type][msg_size] = {}
                 for name, data in column_data.items():
                     if data:
-                        all_data[experiment_type][msg_size][name] = {
+                        all_data[experiment_type][msg_size][new_column_names_mapping[name]] = {
                             'avg': np.mean(data),
                             'p99': np.percentile(data, 99),
-                            'max': np.max(data)
                         }
             except ValueError:
                 print(f"Warning: Could not parse message size from filename: {filename}")
@@ -76,10 +76,9 @@ def analyze_rdma_results(results_dir="compare_results"):
                 all_data[experiment_type][msg_size] = {}
                 for name, data in column_data.items():
                     if data:
-                        all_data[experiment_type][msg_size][name] = {
+                        all_data[experiment_type][msg_size][new_column_names_mapping[name]] = {
                             'avg': np.mean(data),
                             'p99': np.percentile(data, 99),
-                            'max': np.max(data)
                         }
             except ValueError:
                 print(f"Warning: Could not parse message size from filename: {filename}")
@@ -98,7 +97,7 @@ def format_power_of_2(value, tick_number):
 
 def plot_rdma_latency(analyzed_data, save_dir="plots", save_filename="c_and_cpp_comparison.png"):
     """
-    Plots the average, p99, and max durations for each column against message size and saves the plot.
+    Plots the average and p99 durations for each column against message size and saves the plot.
 
     Args:
         analyzed_data (dict): The dictionary returned by analyze_rdma_results.
@@ -106,20 +105,20 @@ def plot_rdma_latency(analyzed_data, save_dir="plots", save_filename="c_and_cpp_
         save_filename (str): The name of the file to save the plot as.
     """
     os.makedirs(save_dir, exist_ok=True)  # Create the plots directory if it doesn't exist
-    fig, axes = plt.subplots(3, 1, figsize=(12, 18), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(12, 12), sharex=True)
     msg_sizes_all = set()
     for exp_data in analyzed_data.values():
         msg_sizes_all.update(exp_data.keys())
     sorted_msg_sizes = sorted(list(msg_sizes_all))
-    column_names = ["before wait", "after wait", "rtt"]
+    column_names = ["send registered", "send completed", "rtt"] # Updated column names for plotting
     experiment_names = list(analyzed_data.keys())
     print(f"Experiment Names: {experiment_names}")
     line_styles = ['-', '--']
     colors = ['r', 'g', 'b']
 
-    statistic_types = ['avg', 'p99', 'max']
-    titles = ["Average Latency", "99th Percentile Latency", "Maximum Latency"]
-    ylabels = ["Latency ($\mu$s)", "Latency ($\mu$s)", "Latency ($\mu$s)"] # Changed y-axis labels
+    statistic_types = ['avg', 'p99']
+    titles = ["Average Latency", "99th Percentile Latency"]
+    ylabels = ["Latency ($\mu$s)", "Latency ($\mu$s)"]
 
     for i, stat_type in enumerate(statistic_types):
         ax = axes[i]
@@ -128,6 +127,7 @@ def plot_rdma_latency(analyzed_data, save_dir="plots", save_filename="c_and_cpp_
                 for k, col_name in enumerate(column_names):
                     latencies = []
                     for size in sorted_msg_sizes:
+                        # Access data using the new column names
                         value = analyzed_data[exp_type].get(size, {}).get(col_name, {}).get(stat_type)
                         if value is None:
                             print(f"Warning: No data found for Experiment: {exp_type}, Message Size: {size}, Column: {col_name}, Statistic: {stat_type}")
